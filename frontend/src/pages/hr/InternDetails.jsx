@@ -1,0 +1,260 @@
+import React from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import PageWrapper from '../../components/PageWrapper';
+
+export default function HRInternDetails() {
+  const navigate = useNavigate();
+  const { id } = useParams();
+
+  // Mock Intern Data
+  const emp = {
+    id: id || 'INT-001',
+    name: 'Alex Wong',
+    email: 'alex.w@movicloudlabs.com',
+    phone: '+1 (555) 123-4567',
+    university: 'Massachusetts Institute of Technology',
+    major: 'Computer Science',
+    department: 'Engineering',
+    designation: 'Software Engineering Intern',
+    type: 'Intern',
+    status: 'Active',
+    joined: 'Jan 10, 2024',
+    endDate: 'Jul 10, 2024',
+    duration: '6 Months',
+    mentor: 'Sarah Jenkins',
+    hrRepresentative: 'Amanda Reed',
+    location: 'San Francisco, CA (HQ)',
+    stipend: '$5,000 / month',
+    leaveBalance: '5 Days (Pro-rated)',
+    sickLeave: '3 Days'
+  };
+
+  const activityHistory = [
+    { id: 1, action: 'Mid-term evaluation submitted by mentor', time: 'April 15, 2024', icon: 'star_rate', color: 'text-amber-500', bg: 'bg-amber-50' },
+    { id: 2, action: 'Completed module: "Frontend Architecture Basics"', time: 'March 10, 2024', icon: 'school', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+    { id: 3, action: 'First pull request merged into main branch', time: 'Feb 20, 2024', icon: 'code', color: 'text-blue-500', bg: 'bg-blue-50' },
+    { id: 4, action: 'Assigned to "Cloud Migration Phase 2" project', time: 'Jan 15, 2024', icon: 'work', color: 'text-purple-500', bg: 'bg-purple-50' },
+    { id: 5, action: 'Onboarding completed successfully', time: 'Jan 12, 2024', icon: 'verified', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+  ];
+
+  return (
+    <PageWrapper>
+      <div className="font-sans text-[#0F172A] max-w-6xl mx-auto space-y-6 pb-20">
+        
+        {/* Breadcrumb Navigation */}
+        <div className="flex items-center gap-2 text-[13px] text-[#64748B] font-medium pt-2">
+          <button onClick={() => navigate('/hr/interns')} className="hover:text-[#2563EB] transition-colors flex items-center gap-1">
+            <span className="material-symbols-outlined text-[16px]">school</span> Interns
+          </button>
+          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+          <span className="text-[#0F172A]">{emp.name}</span>
+        </div>
+
+        {/* Profile Summary Card */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden p-6 sm:p-8 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+              {/* Avatar */}
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#ECFDF5] text-[#059669] flex items-center justify-center text-[32px] font-bold shrink-0 relative border border-[#A7F3D0]">
+                {emp.name.split(' ').map(n=>n[0]).join('')}
+                <div className="absolute bottom-1 right-1 w-4 h-4 bg-[#16A34A] border-2 border-white rounded-full"></div>
+              </div>
+              
+              {/* Name & Primary Details */}
+              <div>
+                <div className="flex items-center gap-3 mb-1.5">
+                  <h1 className="text-[28px] font-bold tracking-tight text-[#0F172A] leading-none">{emp.name}</h1>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[12px] font-semibold bg-[#16A34A]/10 text-[#16A34A]">
+                    {emp.status}
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[12px] font-semibold bg-emerald-100 text-emerald-700">
+                    {emp.type}
+                  </span>
+                </div>
+                <p className="text-[15px] text-[#0F172A] font-medium mb-1">
+                  {emp.designation} <span className="text-[#CBD5E1] mx-1">•</span> {emp.department}
+                </p>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-[#64748B] mt-3">
+                   <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">person</span>
+                      Mentor: <span className="font-medium text-[#2563EB] cursor-pointer hover:underline">{emp.mentor}</span>
+                   </div>
+                   <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">badge</span>
+                      Assigned HR: <span className="font-medium text-[#2563EB] cursor-pointer hover:underline">{emp.hrRepresentative}</span>
+                   </div>
+                   <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px]">location_on</span>
+                      {emp.location}
+                   </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Quick Actions */}
+            <div className="flex gap-3 shrink-0">
+              <button className="border border-[#E2E8F0] bg-white text-[#0F172A] px-4 py-2 rounded-lg text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors flex items-center gap-2 shadow-sm">
+                <span className="material-symbols-outlined text-[18px]">edit</span> Edit Profile
+              </button>
+              <button className="border border-[#E2E8F0] bg-white text-[#2563EB] px-4 py-2 rounded-lg text-[13px] font-medium hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-sm">
+                <span className="material-symbols-outlined text-[18px]">chat</span> Message
+              </button>
+            </div>
+        </div>
+
+        {/* 3-Column Information Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Column 1: Identity & Education */}
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 space-y-6">
+            <h2 className="text-[14px] font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2 border-b border-[#E2E8F0] pb-3">
+              <span className="material-symbols-outlined text-[#64748B]">badge</span>
+              Identity & Education
+            </h2>
+            <div className="space-y-5">
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Intern ID</span>
+                <span className="text-[14px] font-medium text-[#0F172A] font-mono">{emp.id}</span>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">University / College</span>
+                <span className="text-[14px] font-medium text-[#0F172A]">{emp.university}</span>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Major / Degree</span>
+                <span className="text-[14px] font-medium text-[#0F172A]">{emp.major}</span>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Contact Details</span>
+                <div className="flex flex-col gap-1 mt-1">
+                  <a href={`mailto:${emp.email}`} className="text-[13px] font-medium text-[#2563EB] hover:underline">{emp.email}</a>
+                  <span className="text-[13px] font-medium text-[#0F172A]">{emp.phone}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 2: Mentorship & Progress */}
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 space-y-6">
+            <h2 className="text-[14px] font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2 border-b border-[#E2E8F0] pb-3">
+              <span className="material-symbols-outlined text-[#64748B]">group</span>
+              Mentorship & Progress
+            </h2>
+            <div className="space-y-5">
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Assigned Mentor</span>
+                <div className="flex items-center gap-2 mt-1 cursor-pointer group">
+                  <div className="w-6 h-6 rounded-full bg-[#E2E8F0] text-[#475569] flex items-center justify-center text-[10px] font-bold">SJ</div>
+                  <span className="text-[14px] font-medium text-[#2563EB] group-hover:underline">{emp.mentor}</span>
+                </div>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Overall Progress Score</span>
+                <div className="flex items-center gap-3 mt-1">
+                  <div className="flex-1 h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+                    <div className="h-full bg-[#10B981] w-[85%] rounded-full"></div>
+                  </div>
+                  <span className="text-[13px] font-bold text-[#10B981]">85%</span>
+                </div>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Evaluations Completed</span>
+                <span className="text-[14px] font-medium text-[#0F172A]">1 of 2 (Mid-Term Done)</span>
+              </div>
+              <div>
+                <button className="text-[13px] font-medium text-[#2563EB] border border-[#2563EB] hover:bg-blue-50 px-3 py-1.5 rounded transition-colors w-full">
+                  Request Final Evaluation
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 3: Internship Details */}
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 space-y-6 relative">
+            <button className="absolute top-6 right-6 text-[12px] font-semibold text-[#2563EB] hover:underline flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">request_quote</span> Stipend
+            </button>
+            <h2 className="text-[14px] font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-2 border-b border-[#E2E8F0] pb-3">
+              <span className="material-symbols-outlined text-[#64748B]">work</span>
+              Internship Details
+            </h2>
+            <div className="space-y-5">
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Duration</span>
+                <span className="inline-flex items-center px-2.5 py-1 rounded text-[12px] font-semibold bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
+                  {emp.duration} ({emp.joined} to {emp.endDate})
+                </span>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Monthly Stipend</span>
+                <span className="text-[14px] font-medium text-[#0F172A]">{emp.stipend}</span>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Annual Leave Balance</span>
+                <span className="text-[14px] font-medium text-[#16A34A] flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+                  {emp.leaveBalance}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[12px] font-medium text-[#64748B] mb-1">Sick Leave Balance</span>
+                <span className="text-[14px] font-medium text-[#D97706] flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">medical_services</span>
+                  {emp.sickLeave}
+                </span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Intern Progress Timeline */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-8">
+          <div className="flex justify-between items-center mb-8 border-b border-[#E2E8F0] pb-4">
+            <div>
+              <h2 className="text-[18px] font-bold text-[#0F172A]">Internship Progress Tracker</h2>
+              <p className="text-[13px] text-[#64748B] mt-1">A chronological timeline of {emp.name.split(' ')[0]}'s key milestones and evaluations.</p>
+            </div>
+            <button className="border border-[#E2E8F0] text-[#0F172A] px-4 py-2 rounded-lg text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">history</span> Full Event Log
+            </button>
+          </div>
+          
+          <div className="relative pl-4 sm:pl-8">
+            {/* Vertical Line */}
+            <div className="absolute left-[27px] sm:left-[43px] top-4 bottom-4 w-[2px] bg-[#E2E8F0]"></div>
+            
+            <div className="space-y-8">
+              {activityHistory.map((item, index) => (
+                <div key={item.id} className="relative flex items-start gap-6 group">
+                  {/* Timeline Dot/Icon */}
+                  <div className={`w-10 h-10 rounded-full ${item.bg} ${item.color} flex items-center justify-center border-4 border-white shadow-sm relative z-10 shrink-0 group-hover:scale-110 transition-transform`}>
+                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full pt-2 gap-2">
+                    <div>
+                      <p className="text-[15px] font-medium text-[#0F172A]">{item.action}</p>
+                      {index === 0 && <p className="text-[13px] text-[#64748B] mt-0.5">Rating: Exceeds Expectations. Noted strong problem-solving skills.</p>}
+                      {index === 1 && <p className="text-[13px] text-[#64748B] mt-0.5">Score: 95%. Required module completed.</p>}
+                    </div>
+                    <span className="text-[13px] font-medium text-[#94A3B8] whitespace-nowrap">{item.time}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* End of timeline indicator */}
+            <div className="relative flex items-center gap-6 mt-8">
+               <div className="w-10 h-10 flex items-center justify-center relative z-10 shrink-0">
+                  <div className="w-3 h-3 rounded-full bg-[#CBD5E1] border-2 border-white shadow-sm"></div>
+               </div>
+               <span className="text-[13px] font-medium text-[#94A3B8]">Start of Internship</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </PageWrapper>
+  );
+}

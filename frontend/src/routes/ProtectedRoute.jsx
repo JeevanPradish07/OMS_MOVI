@@ -6,6 +6,7 @@ const ROLE_HOME = {
   hr: '/hr/dashboard',
   pmo: '/pmo/dashboard',
   admin: '/admin/dashboard',
+  dept: '/dept/dashboard'
 };
 
 export function ProtectedRoute({ children, allowedRoles }) {
@@ -28,7 +29,7 @@ export function ProtectedRoute({ children, allowedRoles }) {
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={ROLE_HOME[user.role] || '/login'} replace />;
+    return <Navigate to="/unauthorized" replace />;
   }
 
   return children;

@@ -1,128 +1,201 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminAPI, usersAPI } from '../../api';
 import PageWrapper from '../../components/PageWrapper';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import StatusBadge from '../../components/StatusBadge';
-import InternDetailModal from '../../components/InternDetailModal';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [kpis, setKpis] = useState(null);
-  const [stipendDueUsers, setStipendDueUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const openInternDetails = (id) => {
-    setSelectedId(id);
-    setIsModalOpen(true);
-  };
-
-  useEffect(() => {
-    Promise.all([
-      adminAPI.kpis(),
-      usersAPI.getStipendDue()
-    ]).then(([r1, r2]) => {
-      setKpis(r1.data.data);
-      setStipendDueUsers(r2.data.data || []);
-    }).finally(() => setLoading(false));
-  }, []);
+  // Mock data for the enterprise UI
+  const activityFeed = [
+    { id: 1, time: 'Today, 10:42 AM', user: 'Sarah Johnson', action: 'Created a user account for Michael Chen' },
+    { id: 2, time: 'Today, 09:15 AM', user: 'System Admin', action: 'HR Manager permissions updated' },
+    { id: 3, time: 'Today, 08:30 AM', user: 'Automated System', action: 'Password reset initiated for User ID 1024' },
+    { id: 4, time: 'Yesterday, 04:20 PM', user: 'David Smith', action: 'Finance Department access group modified' },
+    { id: 5, time: 'Yesterday, 02:15 PM', user: 'Sarah Johnson', action: 'New role created: Department Coordinator' },
+    { id: 6, time: 'Yesterday, 11:05 AM', user: 'System Admin', action: 'User account deactivated (ID 4092)' },
+    { id: 7, time: 'Sep 12, 09:30 AM', user: 'David Smith', action: 'Role assignment updated for Employee ID 2154' },
+    { id: 8, time: 'Sep 11, 04:45 PM', user: 'Sarah Johnson', action: 'System settings updated (Password Policy)' },
+    { id: 9, time: 'Sep 11, 02:20 PM', user: 'Automated System', action: 'Weekly system backup completed' },
+    { id: 10, time: 'Sep 10, 10:00 AM', user: 'System Admin', action: 'API Token revoked for integration service' },
+  ];
 
   return (
     <PageWrapper>
-      {loading ? <LoadingSpinner text="Loading admin dashboard..." /> : (
-        <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="font-sans text-[#0F172A] max-w-[1440px] mx-auto space-y-6 pb-10">
+        
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E2E8F0] pb-4 h-auto sm:h-[64px] shrink-0">
           <div>
-            <h1 className="font-headline font-bold text-2xl text-slate-900">Admin Dashboard</h1>
-            <p className="text-slate-500 text-sm mt-1">System-wide overview and KPIs</p>
+            <h1 className="text-[24px] font-semibold tracking-tight text-[#0F172A]">Administration Dashboard</h1>
+            <p className="text-[14px] text-[#64748B] mt-0.5">Manage system operations, users, and organizational security.</p>
           </div>
-
-          {/* Stipend Notification Alert */}
-          {stipendDueUsers.length > 0 && (
-            <div className="bg-rose-50 border border-rose-100 rounded-3xl p-6 flex flex-col md:flex-row gap-6 items-start md:items-center animate-in slide-in-from-top-4 duration-500 shadow-sm">
-              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-2xl">error_outline</span>
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-rose-900 leading-tight">Attention: Stipend allocation due for {stipendDueUsers.length} intern{stipendDueUsers.length > 1 ? 's' : ''}</h3>
-                <p className="text-xs text-rose-700/70 mt-0.5 font-medium">Critical system notice: Milestone completion verified. Stipend disbursement required.</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {stipendDueUsers.map(u => (
-                    <button 
-                      key={u._id} 
-                      onClick={() => openInternDetails(u._id)}
-                      className="bg-white/80 hover:bg-white border border-rose-200/50 py-1.5 px-3 rounded-full text-[10px] font-bold text-rose-800 transition-colors flex items-center gap-2 shadow-sm"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                      {u.name} — <span className="opacity-60">{u.project || 'No Project'}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <button 
-                onClick={() => navigate('/admin/users')} 
-                className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl shadow-lg shadow-rose-600/20 transition-all shrink-0"
-              >
-                Review List
-              </button>
-            </div>
-          )}
-
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {[
-              { label: 'Total Users', value: kpis?.totalUsers, icon: 'group', color: 'bg-blue-100 text-blue-600' },
-              { label: 'Interns', value: kpis?.totalInterns, icon: 'school', color: 'bg-indigo-100 text-indigo-600' },
-              { label: 'Active Tasks', value: kpis?.activeTasks, icon: 'task_alt', color: 'bg-emerald-100 text-emerald-600' },
-              { label: 'Live Projects', value: kpis?.activeProjects, icon: 'work', color: 'bg-teal-100 text-teal-600' },
-              { label: 'Present Today', value: kpis?.todayAttendance, icon: 'event_available', color: 'bg-amber-100 text-amber-600' },
-            ].map(({ label, value, icon, color }) => (
-              <div key={label} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3`}>
-                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
-                </div>
-                <p className="text-2xl font-black">{value ?? '—'}</p>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">{label}</p>
-              </div>
-            ))}
+          <div className="text-[13px] font-medium text-[#64748B] mt-4 sm:mt-0 flex items-center gap-4">
+            <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Tasks by status */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-              <h3 className="font-bold text-slate-900 mb-4">Tasks by Status</h3>
-              <div className="space-y-3">
-                {kpis?.tasksByStatus?.map(({ _id, count }) => (
-                  <div key={_id} className="flex items-center justify-between">
-                    <StatusBadge status={_id} />
-                    <span className="font-bold text-slate-700 text-sm">{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Users by role */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-              <h3 className="font-bold text-slate-900 mb-4">Users by Role</h3>
-              <div className="space-y-3">
-                {kpis?.usersByRole?.map(({ _id, count }) => (
-                  <div key={_id} className="flex items-center justify-between">
-                    <StatusBadge status={_id} />
-                    <span className="font-bold text-slate-700 text-sm">{count} users</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <InternDetailModal 
-            internId={selectedId} 
-            isOpen={isModalOpen} 
-            onClose={() => setIsModalOpen(false)} 
-          />
         </div>
-      )}
+
+        {/* SECTION 1: Overview Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
+            <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Total Users</span>
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">245</span>
+              <span className="text-[12px] font-medium text-[#16A34A]">+12 this month</span>
+            </div>
+          </div>
+          <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
+            <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Active Sessions</span>
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">42</span>
+              <span className="text-[12px] font-medium text-[#64748B]">Across 3 locations</span>
+            </div>
+          </div>
+          <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
+            <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Roles</span>
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">6</span>
+              <span className="text-[12px] font-medium text-[#64748B]">14 permission groups</span>
+            </div>
+          </div>
+          <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
+            <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Pending Requests</span>
+            <div className="flex items-end justify-between">
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">8</span>
+              <span className="text-[12px] font-medium text-[#D97706]">Requires attention</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* LEFT COLUMN */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* SECTION 3: Recent Administrative Activity */}
+            <div className="bg-white border border-[#E2E8F0] rounded-md shadow-sm flex flex-col">
+              <div className="px-5 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] rounded-t-md flex justify-between items-center">
+                <h2 className="text-[16px] font-semibold text-[#0F172A]">Recent Administrative Activity</h2>
+                <button onClick={() => navigate('/admin/audit')} className="text-[13px] font-medium text-[#2563EB] hover:underline">View All Activity</button>
+              </div>
+              <div className="p-0 overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#E2E8F0] bg-white">
+                      <th className="px-5 py-3 text-[12px] font-semibold text-[#64748B] uppercase w-[200px]">Timestamp</th>
+                      <th className="px-5 py-3 text-[12px] font-semibold text-[#64748B] uppercase w-[180px]">User</th>
+                      <th className="px-5 py-3 text-[12px] font-semibold text-[#64748B] uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityFeed.map((activity) => (
+                      <tr key={activity.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0">
+                        <td className="px-5 py-3.5 text-[13px] text-[#64748B]">{activity.time}</td>
+                        <td className="px-5 py-3.5 text-[13px] font-medium text-[#0F172A]">{activity.user}</td>
+                        <td className="px-5 py-3.5 text-[13px] text-[#475569]">{activity.action}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="space-y-6">
+
+            {/* SECTION 2: Pending Actions */}
+            <div className="bg-white border border-[#E2E8F0] rounded-md shadow-sm">
+              <div className="px-5 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] rounded-t-md">
+                <h2 className="text-[16px] font-semibold text-[#0F172A]">Pending Actions</h2>
+              </div>
+              <div className="p-0">
+                <div className="divide-y divide-[#E2E8F0]">
+                  <div className="p-4 flex items-center justify-between hover:bg-[#F8FAFC] transition-colors cursor-pointer group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-[#E0E7FF] text-[#4338CA] flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[16px]">vpn_key</span>
+                      </div>
+                      <div>
+                        <h3 className="text-[13px] font-semibold text-[#0F172A]">Access Requests</h3>
+                        <p className="text-[12px] text-[#64748B]">3 pending system access requests</p>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-[#64748B] group-hover:text-[#2563EB] transition-colors">chevron_right</span>
+                  </div>
+                  <div className="p-4 flex items-center justify-between hover:bg-[#F8FAFC] transition-colors cursor-pointer group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-[#FEF3C7] text-[#D97706] flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[16px]">badge</span>
+                      </div>
+                      <div>
+                        <h3 className="text-[13px] font-semibold text-[#0F172A]">Role Changes</h3>
+                        <p className="text-[12px] text-[#64748B]">2 users awaiting role assignments</p>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-[#64748B] group-hover:text-[#2563EB] transition-colors">chevron_right</span>
+                  </div>
+                  <div className="p-4 flex items-center justify-between hover:bg-[#F8FAFC] transition-colors cursor-pointer group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-[#DCFCE7] text-[#16A34A] flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[16px]">person_check</span>
+                      </div>
+                      <div>
+                        <h3 className="text-[13px] font-semibold text-[#0F172A]">Account Activations</h3>
+                        <p className="text-[12px] text-[#64748B]">1 new account awaiting activation</p>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-[#64748B] group-hover:text-[#2563EB] transition-colors">chevron_right</span>
+                  </div>
+                  <div className="p-4 flex items-center justify-between hover:bg-[#F8FAFC] transition-colors cursor-pointer group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-[#F1F5F9] text-[#475569] flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[16px]">rule</span>
+                      </div>
+                      <div>
+                        <h3 className="text-[13px] font-semibold text-[#0F172A]">Permission Reviews</h3>
+                        <p className="text-[12px] text-[#64748B]">2 groups require auditing</p>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-[#64748B] group-hover:text-[#2563EB] transition-colors">chevron_right</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 4: System Status */}
+            <div className="bg-white border border-[#E2E8F0] rounded-md shadow-sm">
+              <div className="px-5 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] rounded-t-md">
+                <h2 className="text-[16px] font-semibold text-[#0F172A]">System Status</h2>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="flex justify-between items-center pb-3 border-b border-[#F1F5F9] last:border-0 last:pb-0">
+                  <span className="text-[13px] text-[#64748B]">Database Status</span>
+                  <span className="text-[13px] font-medium text-[#16A34A] flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#16A34A]"></span> Healthy</span>
+                </div>
+                <div className="flex justify-between items-center pb-3 border-b border-[#F1F5F9] last:border-0 last:pb-0">
+                  <span className="text-[13px] text-[#64748B]">API Availability</span>
+                  <span className="text-[13px] font-medium text-[#16A34A] flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#16A34A]"></span> Online</span>
+                </div>
+                <div className="flex justify-between items-center pb-3 border-b border-[#F1F5F9] last:border-0 last:pb-0">
+                  <span className="text-[13px] text-[#64748B]">Storage Utilization</span>
+                  <span className="text-[13px] font-medium text-[#D97706] flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#F59E0B]"></span> 68%</span>
+                </div>
+                <div className="flex justify-between items-center pb-3 border-b border-[#F1F5F9] last:border-0 last:pb-0">
+                  <span className="text-[13px] text-[#64748B]">Last Backup</span>
+                  <span className="text-[13px] font-medium text-[#0F172A]">Today, 02:00 AM</span>
+                </div>
+                <div className="flex justify-between items-center pb-3 border-b border-[#F1F5F9] last:border-0 last:pb-0">
+                  <span className="text-[13px] text-[#64748B]">Application Version</span>
+                  <span className="text-[13px] font-medium text-[#0F172A]">v2.4.1</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
     </PageWrapper>
   );
 }

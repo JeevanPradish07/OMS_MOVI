@@ -1,128 +1,148 @@
-import { useEffect, useState } from 'react';
-import { tasksAPI } from '../../api';
+import React, { useState } from 'react';
 import PageWrapper from '../../components/PageWrapper';
-import StatusBadge from '../../components/StatusBadge';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import toast from 'react-hot-toast';
-import { format } from 'date-fns';
 
-const STATUSES = ['pending', 'in_progress', 'review', 'done'];
+// --- MOCK DATA FOR INTERN TASKS ---
+const INITIAL_TASKS = [
+  { id: 't1', title: 'Q3 Security Audit Review', project: 'Q3 Security Audit', priority: 'high', status: 'open', date: 'Oct 15', desc: 'Review the latest security audit logs and document any anomalies found during the Q3 period.' },
+  { id: 't2', title: 'Update Onboarding Docs', project: 'HR Internal', priority: 'medium', status: 'in-progress', date: 'Oct 18', desc: 'Update the intern onboarding handbook with the new remote work policies.' },
+  { id: 't3', title: 'Design System Overhaul', project: 'Mobile App Redesign', priority: 'critical', status: 'needs-review', date: 'Oct 12', desc: 'Implement the new color palette across all mobile components.' },
+  { id: 't4', title: 'Monthly Performance Reports', project: 'HR Internal', priority: 'low', status: 'completed', date: 'Oct 10', desc: 'Compile the monthly performance metrics into a presentation.' },
+];
+
+const PRIORITY_STYLES = {
+  low: { icon: 'keyboard_arrow_down', color: 'text-[#64748B]', bg: 'bg-[#F1F5F9]', label: 'Low' },
+  medium: { icon: 'drag_handle', color: 'text-[#D97706]', bg: 'bg-[#FFFBEB]', label: 'Medium' },
+  high: { icon: 'keyboard_arrow_up', color: 'text-[#EA580C]', bg: 'bg-[#FFF7ED]', label: 'High' },
+  critical: { icon: 'priority_high', color: 'text-[#DC2626]', bg: 'bg-[#FEF2F2]', label: 'Critical' },
+};
 
 export default function InternTasks() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [tasks, setTasks] = useState(INITIAL_TASKS);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await tasksAPI.getAll();
-      setTasks(res.data.data);
-    } finally {
-      setLoading(false);
-    }
+  const updateStatus = (id, newStatus) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
   };
 
-  const updateStatus = async (id, status) => {
-    try {
-      await tasksAPI.updateStatus(id, status);
-      setTasks(prev => prev.map(t => t._id === id ? { ...t, status } : t));
-      toast.success('Task status updated');
-    } catch {
-      toast.error('Failed to update status');
-    }
-  };
-
-  const filtered = tasks.filter(t => {
-    const matchSearch = t.title.toLowerCase().includes(search.toLowerCase()) || t.type.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === 'all' || t.status === filter;
-    return matchSearch && matchFilter;
-  });
+  const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter);
 
   return (
     <PageWrapper>
-      <div className="space-y-6">
-        <div>
-          <h1 className="font-headline font-bold text-2xl text-slate-900">My Tasks</h1>
-          <p className="text-slate-500 text-sm mt-1">View and update your assigned tasks</p>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-            <input
-              className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-              placeholder="Search tasks..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+      <div className="font-sans text-[#0F172A] w-full flex flex-col h-full gap-6 max-w-[1200px] mx-auto pb-12">
+        
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">
+          <div>
+            <h1 className="text-[22px] font-semibold tracking-tight text-[#0F172A]">My Assigned Tasks</h1>
+            <p className="text-[13px] text-[#64748B] mt-0.5">
+              Track your work, update progress, and submit deliverables for HR review.
+            </p>
           </div>
-          <div className="flex gap-2">
-            {['all', ...STATUSES].map(s => (
-              <button
-                key={s}
-                onClick={() => setFilter(s)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${filter === s ? 'bg-primary text-white' : 'bg-white text-slate-500 border border-slate-200 hover:border-primary/30'}`}
+          
+          <div className="flex bg-[#F1F5F9] p-1 rounded-lg">
+            {['all', 'open', 'in-progress', 'needs-review', 'completed'].map(f => (
+              <button 
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-1.5 text-[12px] font-bold rounded-md capitalize transition-all ${
+                  filter === f ? 'bg-white text-[#0F172A] shadow-sm' : 'text-[#64748B] hover:text-[#0F172A]'
+                }`}
               >
-                {s === 'all' ? 'All' : s.replace('_', ' ')}
+                {f.replace('-', ' ')}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Table */}
-        {loading ? <LoadingSpinner text="Loading tasks..." /> : (
-          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-            {filtered.length === 0 ? (
-              <p className="text-center text-slate-400 py-12 text-sm">No tasks found.</p>
-            ) : (
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="px-6 py-4">Task</th>
-                    <th className="px-6 py-4">Project</th>
-                    <th className="px-6 py-4">Priority</th>
-                    <th className="px-6 py-4">Due Date</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Update</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm divide-y divide-slate-100">
-                  {filtered.map(task => (
-                    <tr key={task._id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-900">{task.title}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{task.type}</p>
-                      </td>
-                      <td className="px-6 py-4 text-slate-500">{task.project?.name || '—'}</td>
-                      <td className="px-6 py-4"><StatusBadge status={task.priority?.toLowerCase()} /></td>
-                      <td className={`px-6 py-4 font-medium text-sm ${task.status === 'overdue' ? 'text-rose-500' : 'text-slate-500'}`}>
-                        {task.dueDate ? format(new Date(task.dueDate), 'MMM d, yyyy') : '—'}
-                      </td>
-                      <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
-                      <td className="px-6 py-4">
-                        <select
-                          className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:ring-2 focus:ring-primary/20 outline-none font-medium"
-                          value={task.status}
-                          onChange={e => updateStatus(task._id, e.target.value)}
-                          disabled={task.status === 'done'}
+        {/* TASK GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+          {filteredTasks.length === 0 ? (
+            <div className="col-span-full py-20 flex flex-col items-center justify-center border-2 border-dashed border-[#E2E8F0] rounded-2xl bg-[#F8FAFC]">
+              <span className="material-symbols-outlined text-[48px] text-[#CBD5E1] mb-3">task</span>
+              <h3 className="text-[16px] font-bold text-[#0F172A]">No Tasks Found</h3>
+              <p className="text-[13px] text-[#64748B] mt-1">You don't have any tasks in this category.</p>
+            </div>
+          ) : (
+            filteredTasks.map(task => {
+              const pStyles = PRIORITY_STYLES[task.priority];
+              return (
+                <div key={task.id} className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm hover:shadow-md transition-shadow flex flex-col overflow-hidden group">
+                  
+                  {/* Status Banner */}
+                  {task.status === 'open' && <div className="h-1.5 w-full bg-[#64748B]" />}
+                  {task.status === 'in-progress' && <div className="h-1.5 w-full bg-[#2563EB]" />}
+                  {task.status === 'needs-review' && <div className="h-1.5 w-full bg-[#F59E0B]" />}
+                  {task.status === 'completed' && <div className="h-1.5 w-full bg-[#10B981]" />}
+
+                  <div className="p-6 flex-1 flex flex-col">
+                    {/* Tags */}
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border ${pStyles.bg} ${pStyles.color} border-${pStyles.color.split('-')[1]}-200`}>
+                        <span className="material-symbols-outlined text-[14px]">{pStyles.icon}</span>
+                        {pStyles.label} Priority
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#64748B] bg-[#F8FAFC] px-2 py-1 rounded-md border border-[#E2E8F0]">
+                        <span className="material-symbols-outlined text-[14px]">schedule</span>
+                        {task.date}
+                      </div>
+                    </div>
+
+                    <h3 className="text-[16px] font-bold text-[#0F172A] leading-snug mb-2">{task.title}</h3>
+                    <p className="text-[13px] text-[#64748B] leading-relaxed mb-6 line-clamp-3 flex-1">
+                      {task.desc}
+                    </p>
+
+                    <div className="flex items-center gap-2 mb-6 text-[12px] font-bold text-[#0F172A] bg-[#F8FAFC] p-2.5 rounded-lg border border-[#E2E8F0]">
+                      <span className="material-symbols-outlined text-[16px] text-[#64748B]">folder</span>
+                      {task.project}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="mt-auto pt-4 border-t border-[#E2E8F0]">
+                      {task.status === 'open' && (
+                        <button 
+                          onClick={() => updateStatus(task.id, 'in-progress')}
+                          className="w-full py-2.5 bg-[#2563EB] text-white rounded-xl text-[13px] font-bold hover:bg-[#1D4ED8] transition-colors flex items-center justify-center gap-2 shadow-sm"
                         >
-                          {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+                          <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+                          Start Task
+                        </button>
+                      )}
+                      
+                      {task.status === 'in-progress' && (
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => updateStatus(task.id, 'needs-review')}
+                            className="flex-1 py-2.5 bg-[#10B981] text-white rounded-xl text-[13px] font-bold hover:bg-[#059669] transition-colors flex items-center justify-center gap-2 shadow-sm"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">rate_review</span>
+                            Submit for Review
+                          </button>
+                        </div>
+                      )}
+
+                      {task.status === 'needs-review' && (
+                        <div className="w-full py-2.5 bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A] rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 cursor-not-allowed">
+                          <span className="material-symbols-outlined text-[18px]">hourglass_empty</span>
+                          Waiting for HR Approval
+                        </div>
+                      )}
+
+                      {task.status === 'completed' && (
+                        <div className="w-full py-2.5 bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0] rounded-xl text-[13px] font-bold flex items-center justify-center gap-2">
+                          <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                          Task Completed
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
       </div>
     </PageWrapper>
   );

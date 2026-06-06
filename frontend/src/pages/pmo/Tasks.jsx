@@ -1,122 +1,169 @@
-import { useEffect, useState } from 'react';
-import { tasksAPI, usersAPI, projectsAPI } from '../../api';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/PageWrapper';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import StatusBadge from '../../components/StatusBadge';
-import Modal from '../../components/Modal';
-import toast from 'react-hot-toast';
-import { format } from 'date-fns';
 
-export default function PMOTasks() {
-  const [tasks, setTasks] = useState([]);
-  const [interns, setInterns] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', type: 'Development', assignedTo: '', project: '', priority: 'Medium', dueDate: '' });
+// --- MOCK DATA ---
+const PROJECTS = [
+  { id: 'p1', name: 'Cloud Migration Phase 2' },
+  { id: 'p2', name: 'Internal Tools v3.0' },
+  { id: 'p3', name: 'Q3 Financial Reporting' }
+];
 
-  useEffect(() => {
-    Promise.all([tasksAPI.getAll(), usersAPI.getAll({ role: 'intern' }), projectsAPI.getAll()])
-      .then(([t, u, p]) => { setTasks(t.data.data); setInterns(u.data.data); setProjects(p.data.data); })
-      .finally(() => setLoading(false));
-  }, []);
+const INITIAL_TASKS = [
+  { id: 't1', title: 'Setup AWS RDS Instances', projectId: 'p1', assignees: [{ initial: 'S', bg: 'bg-[#EFF6FF]', text: 'text-[#1D4ED8]' }], priority: 'critical', status: 'in-progress', effort: '8 pts', blocked: false },
+  { id: 't2', title: 'Migrate User Data table', projectId: 'p1', assignees: [{ initial: 'M', bg: 'bg-[#F5F3FF]', text: 'text-[#6D28D9]' }], priority: 'high', status: 'backlog', effort: '5 pts', blocked: true },
+  { id: 't3', title: 'Update internal dashboard UI', projectId: 'p2', assignees: [{ initial: 'A', bg: 'bg-[#ECFDF5]', text: 'text-[#059669]' }], priority: 'medium', status: 'qa', effort: '3 pts', blocked: false },
+  { id: 't4', title: 'Generate PDF reports', projectId: 'p3', assignees: [{ initial: 'S', bg: 'bg-[#EFF6FF]', text: 'text-[#1D4ED8]' }], priority: 'high', status: 'completed', effort: '5 pts', blocked: false },
+  { id: 't5', title: 'Configure VPC Peering', projectId: 'p1', assignees: [{ initial: 'A', bg: 'bg-[#ECFDF5]', text: 'text-[#059669]' }], priority: 'high', status: 'qa', effort: '3 pts', blocked: false },
+];
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await tasksAPI.create(form);
-      setTasks(p => [res.data.data, ...p]);
-      setModal(false);
-      toast.success('Task assigned');
-    } catch { toast.error('Failed to create task'); }
+const COLUMNS = [
+  { id: 'backlog', title: 'Backlog', color: 'border-l-[#64748B]' },
+  { id: 'in-progress', title: 'In Progress', color: 'border-l-[#2563EB]' },
+  { id: 'qa', title: 'QA / Review', color: 'border-l-[#F59E0B]' },
+  { id: 'completed', title: 'Completed', color: 'border-l-[#10B981]' },
+];
+
+const PRIORITY_STYLES = {
+  low: { icon: 'keyboard_arrow_down', color: 'text-[#64748B]', bg: 'bg-[#F1F5F9]' },
+  medium: { icon: 'drag_handle', color: 'text-[#D97706]', bg: 'bg-[#FFFBEB]' },
+  high: { icon: 'keyboard_arrow_up', color: 'text-[#EA580C]', bg: 'bg-[#FFF7ED]' },
+  critical: { icon: 'priority_high', color: 'text-[#DC2626]', bg: 'bg-[#FEF2F2]' },
+};
+
+export default function PMOTaskBoard() {
+  const navigate = useNavigate();
+  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [draggedTask, setDraggedTask] = useState(null);
+  const [selectedProject, setSelectedProject] = useState('p1');
+
+  // Drag and Drop
+  const handleDragStart = (e, task) => {
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = 'move';
   };
+  const handleDragOver = (e) => e.preventDefault();
+  const handleDrop = (e, targetStatus) => {
+    e.preventDefault();
+    if (draggedTask && draggedTask.status !== targetStatus) {
+      setTasks(prev => prev.map(t => t.id === draggedTask.id ? { ...t, status: targetStatus } : t));
+    }
+    setDraggedTask(null);
+  };
+
+  const projectTasks = tasks.filter(t => t.projectId === selectedProject);
 
   return (
     <PageWrapper>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="font-sans text-[#0F172A] w-full flex flex-col h-[calc(100vh-100px)] overflow-hidden gap-6 max-w-[1600px] mx-auto pb-4">
+        
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 shrink-0">
           <div>
-            <h1 className="font-headline font-bold text-2xl text-slate-900">Task Assignment</h1>
-            <p className="text-slate-500 text-sm mt-1">Assign and manage tasks for interns</p>
+            <h1 className="text-[22px] font-semibold tracking-tight text-[#0F172A]">Project Task Board</h1>
+            <p className="text-[13px] text-[#64748B] mt-0.5">
+              Manage deliverables, track effort, and clear blockers for your active projects.
+            </p>
           </div>
-          <button onClick={() => setModal(true)} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
-            <span className="material-symbols-outlined text-base">add</span> Assign Task
-          </button>
+          
+          <div className="flex gap-3 items-center">
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B] text-[18px]">folder</span>
+              <select 
+                value={selectedProject}
+                onChange={e => setSelectedProject(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-white border border-[#E2E8F0] rounded-lg text-[13px] font-bold text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 shadow-sm appearance-none cursor-pointer"
+              >
+                {PROJECTS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[#64748B] text-[18px] pointer-events-none">expand_more</span>
+            </div>
+
+            <button className="bg-[#2563EB] text-white px-5 py-2 rounded-lg text-[13px] font-medium hover:bg-[#1D4ED8] transition-colors shadow-sm flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              New Task
+            </button>
+          </div>
         </div>
 
-        {loading ? <LoadingSpinner /> : (
-          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <th className="px-6 py-4">Task</th><th className="px-6 py-4">Assigned To</th>
-                <th className="px-6 py-4">Project</th><th className="px-6 py-4">Priority</th>
-                <th className="px-6 py-4">Due Date</th><th className="px-6 py-4">Status</th>
-              </tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {tasks.map(t => (
-                  <tr key={t._id} className="hover:bg-slate-50/50">
-                    <td className="px-6 py-4"><p className="font-semibold text-slate-900">{t.title}</p><p className="text-xs text-slate-400">{t.type}</p></td>
-                    <td className="px-6 py-4 text-slate-600">{t.assignedTo?.name || '—'}</td>
-                    <td className="px-6 py-4 text-slate-500">{t.project?.name || '—'}</td>
-                    <td className="px-6 py-4"><StatusBadge status={t.priority?.toLowerCase()} /></td>
-                    <td className="px-6 py-4 text-slate-500">{t.dueDate ? format(new Date(t.dueDate), 'MMM d') : '—'}</td>
-                    <td className="px-6 py-4"><StatusBadge status={t.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {tasks.length === 0 && <p className="text-center text-slate-400 py-12 text-sm">No tasks yet. Assign one!</p>}
-          </div>
-        )}
-      </div>
+        {/* BOARD WRAPPER */}
+        <div className="flex-1 flex gap-6 overflow-x-auto overflow-y-hidden custom-scrollbar pb-4 pt-2">
+          {COLUMNS.map(col => {
+            const columnTasks = projectTasks.filter(t => t.status === col.id);
+            return (
+              <div 
+                key={col.id} 
+                className="w-[320px] shrink-0 flex flex-col bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] overflow-hidden"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, col.id)}
+              >
+                {/* Column Header */}
+                <div className={`px-4 py-3 bg-white border-b border-[#E2E8F0] flex items-center justify-between border-l-4 ${col.color}`}>
+                  <h3 className="text-[14px] font-bold text-[#0F172A]">{col.title}</h3>
+                  <div className="w-6 h-6 rounded-full bg-[#F1F5F9] flex items-center justify-center text-[12px] font-bold text-[#64748B]">
+                    {columnTasks.length}
+                  </div>
+                </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Assign New Task" size="lg">
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <label className="text-xs uppercase tracking-widest font-extrabold text-slate-400 block mb-2">Task Title</label>
-            <input className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm outline-none" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} required />
-          </div>
-          <div>
-            <label className="text-xs uppercase tracking-widest font-extrabold text-slate-400 block mb-2">Description</label>
-            <textarea className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm outline-none resize-none" rows={2} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs uppercase tracking-widest font-extrabold text-slate-400 block mb-2">Assign To</label>
-              <select className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm outline-none" value={form.assignedTo} onChange={e => setForm(p => ({ ...p, assignedTo: e.target.value }))} required>
-                <option value="">Select intern...</option>
-                {interns.map(i => <option key={i._id} value={i._id}>{i.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-widest font-extrabold text-slate-400 block mb-2">Project</label>
-              <select className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm outline-none" value={form.project} onChange={e => setForm(p => ({ ...p, project: e.target.value }))}>
-                <option value="">No project</option>
-                {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs uppercase tracking-widest font-extrabold text-slate-400 block mb-2">Type</label>
-              <select className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm outline-none" value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}>
-                {['Development', 'Design', 'Research', 'QA', 'Admin', 'Other'].map(t => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-widest font-extrabold text-slate-400 block mb-2">Priority</label>
-              <select className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm outline-none" value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}>
-                {['Low', 'Medium', 'High', 'Critical'].map(p => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-widest font-extrabold text-slate-400 block mb-2">Due Date</label>
-              <input type="date" className="w-full bg-slate-50 rounded-2xl px-4 py-3 text-sm outline-none" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} />
-            </div>
-          </div>
-          <button type="submit" className="w-full btn-primary py-3 text-sm">Assign Task</button>
-        </form>
-      </Modal>
+                {/* Column Body */}
+                <div className="flex-1 p-3 overflow-y-auto custom-scrollbar space-y-3">
+                  {columnTasks.map(task => {
+                    const pStyles = PRIORITY_STYLES[task.priority];
+                    return (
+                      <div
+                        key={task.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, task)}
+                        className={`bg-white p-4 rounded-xl shadow-sm border transition-all cursor-grab active:cursor-grabbing group ${task.blocked ? 'border-[#FCA5A5] bg-[#FEF2F2]/50 hover:border-[#EF4444]' : 'border-[#E2E8F0] hover:border-[#CBD5E1] hover:shadow-md'}`}
+                      >
+                        {/* Tags */}
+                        <div className="flex justify-between items-start mb-3">
+                          <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${pStyles.bg} ${pStyles.color}`}>
+                            <span className="material-symbols-outlined text-[12px]">{pStyles.icon}</span>
+                            {task.priority}
+                          </div>
+                          
+                          {task.blocked && (
+                            <div className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#EF4444] text-white flex items-center gap-1 shadow-sm">
+                              <span className="material-symbols-outlined text-[12px]">block</span>
+                              Blocked
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Title */}
+                        <h4 className="text-[14px] font-bold text-[#0F172A] leading-snug mb-4">{task.title}</h4>
+
+                        {/* Footer */}
+                        <div className="border-t border-[#E2E8F0] pt-3 flex items-center justify-between mt-auto">
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#64748B] bg-[#F1F5F9] px-2 py-1 rounded-md">
+                            <span className="material-symbols-outlined text-[14px]">psychiatry</span>
+                            {task.effort}
+                          </div>
+                          
+                          <div className="flex -space-x-1.5">
+                            {task.assignees.map((a, i) => (
+                              <div key={i} className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] border-2 border-white relative z-[${10-i}] ${a.bg} ${a.text}`}>
+                                {a.initial}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                  {columnTasks.length === 0 && (
+                    <div className="h-24 border-2 border-dashed border-[#E2E8F0] rounded-xl flex items-center justify-center text-[12px] font-semibold text-[#94A3B8]">
+                      Drop tasks here
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </PageWrapper>
   );
 }

@@ -1,6 +1,6 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import toast from 'react-hot-toast';
+import { Shield, Grid2X2, CheckSquare } from 'lucide-react';
 
 const NAV_CONFIG = {
   intern: [
@@ -11,15 +11,16 @@ const NAV_CONFIG = {
     { to: '/intern/messages', icon: 'forum', label: 'Messages' },
     { to: '/intern/performance', icon: 'grade', label: 'Performance' },
     { to: '/intern/payments', icon: 'payments', label: 'Payments' },
-    { to: '/intern/documents', icon: 'folder_open', label: 'Documents' },
   ],
   hr: [
     { to: '/hr/dashboard', icon: 'dashboard', label: 'Dashboard' },
+    { to: '/hr/employees', icon: 'badge', label: 'Employees' },
+    { to: '/hr/interns', icon: 'school', label: 'Interns' },
     { to: '/hr/onboarding', icon: 'person_add', label: 'Onboarding' },
     { to: '/hr/attendance', icon: 'event_available', label: 'Attendance' },
-    { to: '/hr/documents', icon: 'folder_open', label: 'Documents' },
     { to: '/hr/performance', icon: 'grade', label: 'Performance' },
-    { to: '/hr/communication', icon: 'campaign', label: 'Announcements' },
+    { to: '/hr/tasks', icon: 'view_kanban', label: 'Task Board' },
+    { to: '/hr/tasks/new', icon: CheckSquare, label: 'Assign Task', isLucide: true },
   ],
   pmo: [
     { to: '/pmo/dashboard', icon: 'dashboard', label: 'Dashboard' },
@@ -31,68 +32,63 @@ const NAV_CONFIG = {
   ],
   admin: [
     { to: '/admin/dashboard', icon: 'dashboard', label: 'Dashboard' },
-    { to: '/admin/users', icon: 'manage_accounts', label: 'User Management' },
+    { to: '/admin/users', icon: 'group', label: 'Users' },
+    { to: '/admin/departments', icon: 'domain', label: 'Departments' },
+    { to: '/admin/roles', icon: 'badge', label: 'Roles' },
+    { to: '/admin/permissions', icon: Shield, label: 'Permissions', isLucide: true },
+    { to: '/admin/access-matrix', icon: Grid2X2, label: 'Access Matrix', isLucide: true },
+    { to: '/admin/audit', icon: 'history', label: 'Audit Logs' },
     { to: '/admin/reports', icon: 'analytics', label: 'Reports' },
-    { to: '/admin/payments', icon: 'payments', label: 'Payments' },
-    { to: '/admin/access', icon: 'admin_panel_settings', label: 'Access Control' },
-    { to: '/admin/config', icon: 'settings', label: 'System Config' },
+    { to: '/admin/settings', icon: 'settings', label: 'Settings' },
   ],
 };
 
 export default function Sidebar({ collapsed, setCollapsed }) {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const links = NAV_CONFIG[user?.role] || [];
 
-  const handleLogout = () => {
-    logout();
-    toast.success('Signed out successfully');
-    navigate('/login');
-  };
-
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-100 shadow-[20px_0_40px_rgba(0,0,0,0.02)] transition-all duration-300 flex flex-col ${collapsed ? 'w-20' : 'w-72'} hidden lg:flex`}>
-      {/* Logo */}
-      <div className={`px-6 pt-8 pb-6 flex items-center gap-3 border-b border-slate-50 transition-all ${collapsed ? 'justify-center' : 'flex-col text-center justify-center'}`}>
-        <img src="/assets/logo.png" alt="Movi Cloud Labs" className={`auto object-contain transition-all ${collapsed ? 'h-8' : 'h-20'}`} />
-        {!collapsed && <span className="font-headline font-bold text-xl text-black tracking-tight whitespace-nowrap">Movi Cloud Labs</span>}
-      </div>
+    <aside className={`fixed inset-y-0 left-0 z-50 bg-[#F8FAFC] border-r border-[#E2E8F0] transition-all duration-300 flex flex-col ${collapsed ? 'w-20' : 'w-[260px]'} hidden lg:flex font-sans`}>
+      
+      {/* Spacer for Header */}
+      <div className="h-16 flex-shrink-0" />
 
       <button 
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3.5 top-10 w-7 h-7 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-500 hover:text-primary hover:border-primary shadow-sm z-50 transition-colors"
+        className="absolute -right-3 top-20 w-6 h-6 bg-white border border-[#E2E8F0] rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 hover:border-blue-600 shadow-sm z-50 transition-colors"
       >
-        <span className="material-symbols-outlined text-[15px]">{collapsed ? 'chevron_right' : 'chevron_left'}</span>
+        <span className="material-symbols-outlined text-[14px]">{collapsed ? 'chevron_right' : 'chevron_left'}</span>
       </button>
 
       {/* Nav links */}
-      <nav className={`flex-1 ${collapsed ? 'px-2' : 'px-4'} py-4 space-y-1 overflow-y-auto custom-scrollbar`}>
-        {links.map(({ to, icon, label }) => (
+      <nav className={`flex-1 py-6 space-y-1 overflow-y-auto custom-scrollbar ${collapsed ? 'px-3' : 'px-4'}`}>
+        {links.map(({ to, icon, label, isLucide }) => (
           <NavLink
             key={to}
             to={to}
             title={collapsed ? label : ''}
             className={({ isActive }) =>
-              `nav-link ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-0' : ''}`
+              `flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+                isActive 
+                  ? 'bg-[#E2E8F0] text-[#0F172A] font-medium' 
+                  : 'text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]'
+              } ${collapsed ? 'justify-center px-0 py-3' : ''}`
             }
           >
-            <span className="material-symbols-outlined text-xl flex-shrink-0">{icon}</span>
-            {!collapsed && <span className="font-semibold text-sm whitespace-nowrap">{label}</span>}
+            {isLucide ? (
+              <span className="flex-shrink-0 flex items-center justify-center w-[20px]">
+                {(() => {
+                  const Icon = icon;
+                  return <Icon size={20} />;
+                })()}
+              </span>
+            ) : (
+              <span className="material-symbols-outlined text-[20px] flex-shrink-0">{icon}</span>
+            )}
+            {!collapsed && <span className="text-[13px] whitespace-nowrap">{label}</span>}
           </NavLink>
         ))}
       </nav>
-
-      {/* Bottom */}
-      <div className={`px-4 py-4 border-t border-slate-50 ${collapsed ? 'px-2' : ''}`}>
-        <button
-          onClick={handleLogout}
-          title={collapsed ? "Sign Out" : ""}
-          className={`nav-link w-full text-red-500 hover:bg-red-50 hover:text-red-600 ${collapsed ? 'justify-center px-0' : ''}`}
-        >
-          <span className="material-symbols-outlined text-xl flex-shrink-0">logout</span>
-          {!collapsed && <span className="font-bold text-sm whitespace-nowrap">Sign Out</span>}
-        </button>
-      </div>
     </aside>
   );
 }
