@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, AlertCircle, Paperclip, CheckSquare, MessageSquare, Plus, ChevronDown, Flag, UserPlus, RefreshCw, Check } from 'lucide-react';
+import { X, Clock, AlertCircle, Paperclip, CheckSquare, MessageSquare, Plus, ChevronDown, Flag, UserPlus, RefreshCw, Check, PlayCircle, Send } from 'lucide-react';
 
 /**
  * TaskDetailModal
@@ -183,15 +183,38 @@ export const TaskDetailModal = ({ task, onClose, onStatusChange, onAssign }) => 
 
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-8 mb-4">Quick Actions</h3>
               <div className="space-y-2">
-                <button className="w-full py-2 px-3 bg-white border border-slate-200 text-red-600 rounded-lg text-sm font-bold hover:bg-red-50 hover:border-red-200 flex items-center gap-2 transition-colors">
-                  <AlertCircle size={16} /> Mark as Blocked
-                </button>
-                <button className="w-full py-2 px-3 bg-white border border-slate-200 text-purple-600 rounded-lg text-sm font-bold hover:bg-purple-50 hover:border-purple-200 flex items-center gap-2 transition-colors">
-                  <RefreshCw size={16} /> Submit for Review
-                </button>
-                <button className="w-full py-2 px-3 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 flex items-center gap-2 transition-colors">
-                  <Check size={16} /> Mark Complete
-                </button>
+                {task.status === 'backlog' && (
+                  <button 
+                    onClick={() => { if(onStatusChange) onStatusChange(task.id, 'in-progress'); onClose(); }}
+                    className="w-full py-2 px-3 bg-white border border-slate-200 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                  >
+                    <PlayCircle size={16} /> Start Task
+                  </button>
+                )}
+                {(task.status === 'in-progress' || task.status === 'backlog') && (
+                  <button 
+                    onClick={() => { if(onStatusChange) onStatusChange(task.id, 'qa'); onClose(); }}
+                    className="w-full py-2 px-3 bg-white border border-slate-200 text-purple-600 rounded-lg text-sm font-bold hover:bg-purple-50 flex items-center gap-2 transition-colors"
+                  >
+                    <Send size={16} /> Submit for Review
+                  </button>
+                )}
+                {task.status !== 'completed' && !task.blocked && (
+                  <button 
+                    onClick={() => { /* assuming PMO blocked handling */ onClose(); }}
+                    className="w-full py-2 px-3 bg-white border border-slate-200 text-red-600 rounded-lg text-sm font-bold hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  >
+                    <AlertCircle size={16} /> Mark as Blocked
+                  </button>
+                )}
+                {task.status !== 'completed' && (
+                  <button 
+                    onClick={() => { if(onStatusChange) onStatusChange(task.id, 'completed'); onClose(); }}
+                    className="w-full py-2 px-3 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 flex items-center gap-2 transition-colors"
+                  >
+                    <Check size={16} /> Mark Complete
+                  </button>
+                )}
               </div>
 
             </div>

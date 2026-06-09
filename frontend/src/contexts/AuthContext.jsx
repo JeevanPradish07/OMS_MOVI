@@ -12,11 +12,13 @@ export const AuthProvider = ({ children }) => {
     // MOCK LOGIN - Role determined by credentials
     const t = 'mock-jwt-token-123';
     let role = 'viewer'; // default
-    if (email.startsWith('admin')) role = 'admin';
-    else if (email.startsWith('hr')) role = 'hr';
-    else if (email.startsWith('pmo')) role = 'pmo';
-    else if (email.startsWith('intern')) role = 'intern';
-    else if (email.startsWith('dept')) role = 'dept';
+    const emailLower = email.toLowerCase();
+    if (emailLower.startsWith('admin')) role = 'admin';
+    else if (emailLower.startsWith('hr')) role = 'hr';
+    else if (emailLower.startsWith('pmo')) role = 'pmo';
+    else if (emailLower.startsWith('int') || emailLower.startsWith('intern')) role = 'intern';
+    else if (emailLower.startsWith('emp') || emailLower.startsWith('employee')) role = 'employee';
+    else if (emailLower.startsWith('dept')) role = 'dept';
 
     const u = {
       _id: 'mock-user-123',

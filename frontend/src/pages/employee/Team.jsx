@@ -4,7 +4,7 @@ import {
   Users, Search, Filter, Grid, List as ListIcon, 
   Mail, CalendarDays, X, ChevronRight, Briefcase
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 // --- MOCK DATA ---
 const mockProjects = [
@@ -87,92 +87,13 @@ const mockTeam = [
   }
 ];
 
-// --- SUB-COMPONENTS ---
-const ProfileModal = ({ member, onClose }) => {
-  if (!member) return null;
-
-  return (
-    <AnimatePresence>
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-black/40 z-50 backdrop-blur-sm flex items-center justify-center p-4 font-sans"
-      >
-        <motion.div 
-          initial={{ scale: 0.95, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
-        >
-          {/* Header Cover */}
-          <div className="h-24 bg-[#1E293B] relative flex justify-end p-3">
-            <button onClick={onClose} className="w-8 h-8 rounded-full bg-black/20 text-white flex items-center justify-center hover:bg-black/40 transition-colors">
-              <X size={18} />
-            </button>
-          </div>
-          
-          <div className="px-6 pb-6 relative">
-            {/* Avatar */}
-            <div className={`w-20 h-20 rounded-xl ${member.color} text-white flex items-center justify-center text-2xl font-bold border-4 border-white shadow-sm absolute -top-10`}>
-              {member.avatar}
-            </div>
-            
-            <div className="mt-12">
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-xl font-bold text-[#0F172A]">{member.name}</h2>
-                {member.role === 'intern' && (
-                  <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Intern</span>
-                )}
-                {member.role !== 'intern' && (
-                  <span className="bg-[#EFF6FF] text-[#2563EB] text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{member.role}</span>
-                )}
-              </div>
-              <p className="text-sm text-[#64748B] mb-4">{member.designation} &middot; {member.department}</p>
-              
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 text-sm text-[#0F172A] bg-[#F8FAFC] p-3 rounded-xl border border-[#E2E8F0]">
-                  <Mail size={16} className="text-[#64748B]" />
-                  <span className="font-medium">{member.email}</span>
-                </div>
-                
-                <div className="flex items-center gap-3 text-sm text-[#0F172A] bg-[#F8FAFC] p-3 rounded-xl border border-[#E2E8F0]">
-                  <CalendarDays size={16} className="text-[#64748B]" />
-                  <span className="font-medium">Joined {new Date(member.joinDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
-                </div>
-
-                <div>
-                  <h4 className="text-xs font-semibold tracking-widest text-[#94A3B8] uppercase mb-2">Shared Projects</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {member.sharedProjects.map((p, idx) => (
-                      <span key={idx} className="text-[11px] font-bold bg-white border border-[#E2E8F0] text-[#0F172A] px-2 py-1 rounded flex items-center gap-1.5 shadow-sm">
-                        <Briefcase size={12} className="text-[#64748B]" />
-                        {p}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 pt-4 border-t border-[#E2E8F0]">
-                <p className="text-[11px] text-center text-[#64748B]">To update contact info, please reach out to HR.</p>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
-};
-
+// Removing ProfileModal as we now use TeamDetails page
 
 export default function EmployeeTeam() {
+  const navigate = useNavigate();
   const [view, setView] = useState('grid');
   const [search, setSearch] = useState('');
   const [projectFilter, setProjectFilter] = useState('All Projects');
-  const [selectedMember, setSelectedMember] = useState(null);
 
   const filteredTeam = mockTeam.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -275,7 +196,7 @@ export default function EmployeeTeam() {
                 </div>
 
                 <button 
-                  onClick={() => setSelectedMember(member)}
+                  onClick={() => navigate(`/employee/team/${member._id}`)}
                   className="w-full py-2 bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] font-bold text-sm rounded-lg hover:bg-[#E2E8F0] transition-colors"
                 >
                   View Profile
@@ -328,7 +249,7 @@ export default function EmployeeTeam() {
                       </td>
                       <td className="px-5 py-3 text-right">
                         <button 
-                          onClick={() => setSelectedMember(member)}
+                          onClick={() => navigate(`/employee/team/${member._id}`)}
                           className="text-[#2563EB] hover:bg-[#EFF6FF] px-3 py-1.5 rounded-lg text-sm font-bold transition-colors"
                         >
                           View
@@ -344,7 +265,6 @@ export default function EmployeeTeam() {
 
       </div>
 
-      <ProfileModal member={selectedMember} onClose={() => setSelectedMember(null)} />
     </PageWrapper>
   );
 }

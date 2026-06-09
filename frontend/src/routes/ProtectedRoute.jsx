@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const ROLE_HOME = {
   intern: '/intern/dashboard',
+  employee: '/employee/dashboard',
   hr: '/hr/dashboard',
   pmo: '/pmo/dashboard',
   admin: '/admin/dashboard',

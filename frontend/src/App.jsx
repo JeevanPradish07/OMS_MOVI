@@ -21,6 +21,7 @@ import EmployeeDashboard from './pages/employee/Dashboard';
 import EmployeeTasks from './pages/employee/Tasks';
 import EmployeeProjects from './pages/employee/Projects';
 import EmployeeTeam from './pages/employee/Team';
+import EmployeeTeamDetails from './pages/employee/TeamDetails';
 import EmployeeAttendance from './pages/employee/Attendance';
 import EmployeeLeave from './pages/employee/Leave';
 import EmployeeProfile from './pages/employee/Profile';
@@ -104,6 +105,7 @@ export default function App() {
       <Route path="/employee/tasks" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeTasks /></ProtectedRoute>} />
       <Route path="/employee/projects" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeProjects /></ProtectedRoute>} />
       <Route path="/employee/team" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeTeam /></ProtectedRoute>} />
+      <Route path="/employee/team/:id" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeTeamDetails /></ProtectedRoute>} />
       <Route path="/employee/attendance" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeAttendance /></ProtectedRoute>} />
       <Route path="/employee/leave" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeLeave /></ProtectedRoute>} />
       <Route path="/employee/profile" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeProfile /></ProtectedRoute>} />
