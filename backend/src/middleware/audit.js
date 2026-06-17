@@ -16,6 +16,14 @@ const parseDevice = (userAgent) => {
   return 'Desktop';
 };
 
+// Normalize IP — strips IPv6-mapped IPv4 prefix (::ffff:) and loopback aliases
+const normalizeIp = (ip) => {
+  if (!ip) return null;
+  if (ip === '::1' || ip === '::ffff:127.0.0.1') return '127.0.0.1';
+  if (ip.startsWith('::ffff:')) return ip.slice(7);
+  return ip;
+};
+
 // Generate human-readable audit details
 const generateAuditDetails = (action, module, reqBody, resData) => {
   const name = resData?.name || reqBody?.name || '';
@@ -51,7 +59,7 @@ export const auditLog = (action, module) => {
             module,
             resourceId: req.params?.id || body?.data?._id,
             details: generateAuditDetails(action, module, req.body, body?.data),
-            ipAddress: req.ip,
+            ipAddress: normalizeIp(req.ip),
             userAgent: req.headers['user-agent'],
             device: parseDevice(req.headers['user-agent']),
             result: 'SUCCESS',

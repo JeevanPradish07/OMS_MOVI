@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { announcementsAPI } from '../api';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -22,14 +21,8 @@ export default function Header({ sidebarCollapsed }) {
   const unreadCount = announcements.filter(a => !readIds.includes(a._id)).length;
 
   useEffect(() => {
-    const fetchAnnouncements = () => {
-      announcementsAPI.getAll()
-        .then(r => setAnnouncements(r.data?.data || []))
-        .catch(() => {});
-    };
-    fetchAnnouncements();
-    const interval = setInterval(fetchAnnouncements, 60000);
-    return () => clearInterval(interval);
+    // TODO: wire to notificationAPI.getNotifications() once notification seed data exists
+    // Suppressing announcementsAPI call to avoid 404 noise until backend is seeded
   }, []);
 
   useEffect(() => {
@@ -67,11 +60,14 @@ export default function Header({ sidebarCollapsed }) {
     setNotifOpen(false);
   };
 
-  // Convert role to display name (e.g., admin -> Administrator)
-  const displayRole = user?.role === 'admin' ? 'Administrator' : 
-                      user?.role === 'hr' ? 'HR Manager' : 
-                      user?.role === 'pmo' ? 'PMO' : 
-                      user?.role === 'intern' ? 'Intern' : 'User';
+  // user.role from real backend is a populated object — extract slug
+  const roleSlug = user?.role?.slug || user?.role || '';
+  const displayRole = roleSlug === 'super-admin' || roleSlug === 'admin' ? 'Administrator' :
+                      roleSlug === 'hr-manager' || roleSlug === 'hr' ? 'HR Manager' :
+                      roleSlug === 'pmo-lead'   || roleSlug === 'pmo' ? 'PMO Lead' :
+                      roleSlug === 'intern'     ? 'Intern' :
+                      roleSlug === 'employee'   ? 'Employee' :
+                      user?.role?.name          || 'User';
 
   return (
     <header className={`fixed top-0 right-0 ${sidebarCollapsed ? 'left-20' : 'left-[260px]'} h-16 flex justify-between items-center px-6 lg:px-8 z-40 bg-[#1E293B] text-white shadow-sm font-sans text-[13px] transition-all duration-300`}>

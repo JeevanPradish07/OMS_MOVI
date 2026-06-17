@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '../api/axios';   // ← use configured instance (baseURL + interceptors)
+import { authAPI } from '../utils/api';
 
 const AuthContext = createContext(null);
 
@@ -8,61 +8,66 @@ export const AuthProvider = ({ children }) => {
   const [token,   setToken]   = useState(() => localStorage.getItem('owms_token'));
   const [loading, setLoading] = useState(true);
 
-  const login = useCallback(async (email, password) => {
-    // MOCK LOGIN - Role determined by credentials
-    const t = 'mock-jwt-token-123';
-    let role = 'viewer'; // default
-    const emailLower = email.toLowerCase();
-    if (emailLower.startsWith('admin')) role = 'admin';
-    else if (emailLower.startsWith('hr')) role = 'hr';
-    else if (emailLower.startsWith('pmo')) role = 'pmo';
-    else if (emailLower.startsWith('int') || emailLower.startsWith('intern')) role = 'intern';
-    else if (emailLower.startsWith('emp') || emailLower.startsWith('employee')) role = 'employee';
-    else if (emailLower.startsWith('dept')) role = 'dept';
+  // Permission check helper — used across the app
+  const hasPermission = useCallback((resource, action) => {
+    if (!user?.role?.permissions) return false;
+    if (user.role.slug === 'super-admin') return true;
+    const permName = `${resource.toLowerCase()}.${action}`;
+    return user.role.permissions.some(
+      (p) => p.name === permName && p.status === 'Active'
+    );
+  }, [user]);
 
-    const u = {
-      _id: 'mock-user-123',
-      name: email.split('@')[0].toUpperCase(),
-      email,
-      role
-    };
-    localStorage.setItem('owms_token', t);
-    localStorage.setItem('owms_mock_user', JSON.stringify(u));
-    setToken(t);
-    setUser(u);
-    return u;
+  const login = useCallback(async (identifier, password) => {
+    const response = await authAPI.login({ identifier, password });
+    const { token: newToken, refreshToken, user: userData } = response.data.data;
+
+    localStorage.setItem('owms_token', newToken);
+    if (refreshToken) localStorage.setItem('owms_refresh_token', refreshToken);
+    localStorage.setItem('owms_user', JSON.stringify(userData));
+
+    setToken(newToken);
+    setUser(userData);
+    return userData;
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('owms_token');
+    localStorage.removeItem('owms_refresh_token');
+    localStorage.removeItem('owms_user');
+    // Legacy keys cleanup
     localStorage.removeItem('owms_mock_user');
     setToken(null);
     setUser(null);
   }, []);
 
-  // Restore session on mount / token change
+  // Restore session on mount
   useEffect(() => {
-    const restore = async () => {
-      if (!token) { setLoading(false); return; }
-      try {
-        // MOCK RESTORE
-        const u = JSON.parse(localStorage.getItem('owms_mock_user'));
-        if (u) {
-          setUser(u);
-        } else {
+    const restore = () => {
+      const storedToken = localStorage.getItem('owms_token');
+      const storedUser  = localStorage.getItem('owms_user');
+      if (storedToken && storedUser) {
+        try {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        } catch {
           logout();
         }
-      } catch {
+      } else {
         logout();
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
     restore();
-  }, [token, logout]);
+
+    // Listen for 401 events dispatched by the axios interceptor
+    const handle401 = () => logout();
+    window.addEventListener('owms:unauthorized', handle401);
+    return () => window.removeEventListener('owms:unauthorized', handle401);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

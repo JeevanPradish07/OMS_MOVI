@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, CheckCircle, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { adminAPI } from '../../utils/api';
 
 export default function AdminCreatePermission() {
   const navigate = useNavigate();
@@ -15,17 +17,23 @@ export default function AdminCreatePermission() {
   });
   const [errors, setErrors] = useState({});
   const [copied, setCopied] = useState(false);
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const RESOURCES = ['Users', 'Departments', 'Roles', 'Reports', 'Audit Logs', 'Projects', 'Tasks'];
+  const RESOURCES = ['Users', 'Departments', 'Roles', 'Permissions', 'Reports', 'Audit Logs', 'Projects', 'Tasks'];
   const ACTIONS = ['Create', 'Read', 'Update', 'Delete', 'Export', 'Manage', 'Schedule'];
-  const ROLES = [
-    { name: 'Super Admin', color: 'bg-red-100 text-red-700' },
-    { name: 'HR Manager', color: 'bg-blue-100 text-blue-700' },
-    { name: 'PMO Lead', color: 'bg-purple-100 text-purple-700' },
-    { name: 'Department Head', color: 'bg-amber-100 text-amber-700' },
-    { name: 'Intern', color: 'bg-green-100 text-green-700' },
-    { name: 'Viewer', color: 'bg-gray-100 text-gray-700' },
-  ];
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const res = await adminAPI.getRoles();
+        setRoles(res.data.data || []);
+      } catch (err) {
+        toast.error('Failed to load roles');
+      }
+    };
+    fetchRoles();
+  }, []);
 
   const permissionString = formData.resource && formData.action 
     ? `${formData.resource.toLowerCase().replace(' ', '')}.${formData.action.toLowerCase()}` 
@@ -38,13 +46,13 @@ export default function AdminCreatePermission() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRoleToggle = (roleName) => {
+  const handleRoleToggle = (roleId) => {
     setFormData(prev => {
-      const isSelected = prev.assignedRoles.includes(roleName);
+      const isSelected = prev.assignedRoles.includes(roleId);
       if (isSelected) {
-        return { ...prev, assignedRoles: prev.assignedRoles.filter(r => r !== roleName) };
+        return { ...prev, assignedRoles: prev.assignedRoles.filter(r => r !== roleId) };
       }
-      return { ...prev, assignedRoles: [...prev.assignedRoles, roleName] };
+      return { ...prev, assignedRoles: [...prev.assignedRoles, roleId] };
     });
   };
 
@@ -65,10 +73,36 @@ export default function AdminCreatePermission() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      // API call would go here
-      navigate('/admin/permissions');
+      setLoading(true);
+      try {
+        const res = await adminAPI.createPermission({
+          name: permissionString,
+          label: formData.label,
+          resource: formData.resource,
+          action: formData.action,
+          description: formData.description,
+          riskLevel: formData.riskLevel,
+          requiresApproval: formData.requiresApproval
+        });
+        const newPermId = res.data.data._id;
+
+        if (formData.assignedRoles.length > 0) {
+          const selectedRoles = roles.filter(r => formData.assignedRoles.includes(r._id));
+          await Promise.all(selectedRoles.map(role => {
+            const currentPerms = role.permissions.map(p => typeof p === 'object' ? p._id : p);
+            return adminAPI.updateRolePermissions(role._id, [...currentPerms, newPermId]);
+          }));
+        }
+
+        toast.success('Permission created successfully');
+        navigate('/admin/permissions');
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to create permission');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -264,18 +298,18 @@ export default function AdminCreatePermission() {
               </div>
               
               <div className="space-y-3">
-                {ROLES.map(role => (
-                  <label key={role.name} className="flex items-center gap-3 p-3 border border-[#E2E8F0] rounded-lg cursor-pointer hover:bg-[#F8FAFC] transition-colors group">
+                {roles.map(role => (
+                  <label key={role._id} className="flex items-center gap-3 p-3 border border-[#E2E8F0] rounded-lg cursor-pointer hover:bg-[#F8FAFC] transition-colors group">
                     <input 
                       type="checkbox" 
-                      checked={formData.assignedRoles.includes(role.name)}
-                      onChange={() => handleRoleToggle(role.name)}
+                      checked={formData.assignedRoles.includes(role._id)}
+                      onChange={() => handleRoleToggle(role._id)}
                       className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB] cursor-pointer"
                     />
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-[#0F172A]">{role.name}</span>
-                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase ${role.color}`}>
-                        Role
+                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase ${role.isSystem ? 'bg-[#F1F5F9] text-[#475569]' : 'bg-[#E0E7FF] text-[#4338CA]'}`}>
+                        {role.isSystem ? 'System Default' : 'Custom'}
                       </span>
                     </div>
                   </label>
@@ -300,8 +334,10 @@ export default function AdminCreatePermission() {
           </button>
           <button 
             onClick={handleSubmit}
-            className="bg-[#2563EB] hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
+            disabled={loading}
+            className="bg-[#2563EB] hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 flex items-center gap-2"
           >
+            {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             Create Permission
           </button>
         </div>

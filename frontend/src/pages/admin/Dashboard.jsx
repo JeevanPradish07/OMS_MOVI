@@ -1,23 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../../components/PageWrapper';
+import { adminAPI } from '../../utils/api';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
-  // Mock data for the enterprise UI
-  const activityFeed = [
-    { id: 1, time: 'Today, 10:42 AM', user: 'Sarah Johnson', action: 'Created a user account for Michael Chen' },
-    { id: 2, time: 'Today, 09:15 AM', user: 'System Admin', action: 'HR Manager permissions updated' },
-    { id: 3, time: 'Today, 08:30 AM', user: 'Automated System', action: 'Password reset initiated for User ID 1024' },
-    { id: 4, time: 'Yesterday, 04:20 PM', user: 'David Smith', action: 'Finance Department access group modified' },
-    { id: 5, time: 'Yesterday, 02:15 PM', user: 'Sarah Johnson', action: 'New role created: Department Coordinator' },
-    { id: 6, time: 'Yesterday, 11:05 AM', user: 'System Admin', action: 'User account deactivated (ID 4092)' },
-    { id: 7, time: 'Sep 12, 09:30 AM', user: 'David Smith', action: 'Role assignment updated for Employee ID 2154' },
-    { id: 8, time: 'Sep 11, 04:45 PM', user: 'Sarah Johnson', action: 'System settings updated (Password Policy)' },
-    { id: 9, time: 'Sep 11, 02:20 PM', user: 'Automated System', action: 'Weekly system backup completed' },
-    { id: 10, time: 'Sep 10, 10:00 AM', user: 'System Admin', action: 'API Token revoked for integration service' },
-  ];
+  const [metrics, setMetrics] = useState({ totalUsers: null, totalRoles: null });
+  const [activityFeed, setActivityFeed] = useState([]);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [activityLoading, setActivityLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      setMetricsLoading(true);
+      try {
+        const [usersRes, rolesRes] = await Promise.all([
+          adminAPI.getUsers({ limit: 1 }),
+          adminAPI.getRoles(),
+        ]);
+        setMetrics({
+          totalUsers: usersRes.data.pagination?.total ?? usersRes.data.data?.length ?? 0,
+          totalRoles: rolesRes.data.data?.length ?? 0,
+        });
+      } catch (err) {
+        console.error('Failed to load dashboard metrics:', err);
+      } finally {
+        setMetricsLoading(false);
+      }
+    };
+
+    const fetchActivity = async () => {
+      setActivityLoading(true);
+      try {
+        const res = await adminAPI.getAuditLogs({ limit: 10 });
+        setActivityFeed(res.data.data || []);
+      } catch (err) {
+        console.error('Failed to load audit logs:', err);
+      } finally {
+        setActivityLoading(false);
+      }
+    };
+
+    fetchMetrics();
+    fetchActivity();
+  }, []);
 
   return (
     <PageWrapper>
@@ -39,29 +66,35 @@ export default function AdminDashboard() {
           <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
             <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Total Users</span>
             <div className="flex items-end justify-between">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">245</span>
-              <span className="text-[12px] font-medium text-[#16A34A]">+12 this month</span>
+              {metricsLoading ? (
+                <div className="h-6 w-12 bg-[#E2E8F0] rounded animate-pulse" />
+              ) : (
+                <span className="text-[24px] font-medium text-[#0F172A] leading-none">{metrics.totalUsers ?? '—'}</span>
+              )}
             </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
             <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Active Sessions</span>
             <div className="flex items-end justify-between">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">42</span>
-              <span className="text-[12px] font-medium text-[#64748B]">Across 3 locations</span>
+              {/* TODO: No backend endpoint for active sessions yet */}
+              <span className="text-[13px] text-[#94A3B8] italic">Not connected</span>
             </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
             <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Roles</span>
             <div className="flex items-end justify-between">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">6</span>
-              <span className="text-[12px] font-medium text-[#64748B]">14 permission groups</span>
+              {metricsLoading ? (
+                <div className="h-6 w-8 bg-[#E2E8F0] rounded animate-pulse" />
+              ) : (
+                <span className="text-[24px] font-medium text-[#0F172A] leading-none">{metrics.totalRoles ?? '—'}</span>
+              )}
             </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
             <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Pending Requests</span>
             <div className="flex items-end justify-between">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">8</span>
-              <span className="text-[12px] font-medium text-[#D97706]">Requires attention</span>
+              {/* TODO: No backend endpoint for pending requests yet */}
+              <span className="text-[13px] text-[#94A3B8] italic">Not connected</span>
             </div>
           </div>
         </div>
@@ -87,11 +120,31 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {activityFeed.map((activity) => (
-                      <tr key={activity.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0">
-                        <td className="px-5 py-3.5 text-[13px] text-[#64748B]">{activity.time}</td>
-                        <td className="px-5 py-3.5 text-[13px] font-medium text-[#0F172A]">{activity.user}</td>
-                        <td className="px-5 py-3.5 text-[13px] text-[#475569]">{activity.action}</td>
+                    {activityLoading ? (
+                      [...Array(5)].map((_, i) => (
+                        <tr key={i} className="border-b border-[#F1F5F9] animate-pulse">
+                          <td className="px-5 py-3.5"><div className="h-4 bg-[#E2E8F0] rounded w-32" /></td>
+                          <td className="px-5 py-3.5"><div className="h-4 bg-[#E2E8F0] rounded w-24" /></td>
+                          <td className="px-5 py-3.5"><div className="h-4 bg-[#E2E8F0] rounded w-48" /></td>
+                        </tr>
+                      ))
+                    ) : activityFeed.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="px-5 py-10 text-center text-[#94A3B8] text-sm">
+                          No recent activity found.
+                        </td>
+                      </tr>
+                    ) : activityFeed.map((log) => (
+                      <tr key={log._id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0">
+                        <td className="px-5 py-3.5 text-[13px] text-[#64748B]">
+                          {log.createdAt ? new Date(log.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] font-medium text-[#0F172A]">
+                          {log.user?.name || log.performedBy?.name || 'System'}
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] text-[#475569]">
+                          {log.action}{log.resource ? ` — ${log.resource}` : ''}{log.details ? `: ${log.details}` : ''}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

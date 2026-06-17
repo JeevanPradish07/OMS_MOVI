@@ -1,37 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Edit2, Eye, EyeOff, Lock } from 'lucide-react';
+import { Search, Plus, Edit2, Eye, EyeOff, Lock, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 import PageWrapper from '../../components/PageWrapper';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { adminAPI } from '../../utils/api';
 
-// --- MOCK DATA ---
-const mockPermissions = [
-  { id: 1, name: 'users.create', label: 'Create Users', resource: 'Users', action: 'Create', assignedRoles: 2, status: 'Active', createdAt: 'Jan 15, 2024' },
-  { id: 2, name: 'users.read', label: 'View Users', resource: 'Users', action: 'Read', assignedRoles: 6, status: 'Active', createdAt: 'Jan 15, 2024' },
-  { id: 3, name: 'users.update', label: 'Update Users', resource: 'Users', action: 'Update', assignedRoles: 2, status: 'Active', createdAt: 'Jan 15, 2024' },
-  { id: 4, name: 'users.delete', label: 'Delete Users', resource: 'Users', action: 'Delete', assignedRoles: 1, status: 'Active', createdAt: 'Jan 15, 2024' },
-  { id: 5, name: 'departments.manage', label: 'Manage Departments', resource: 'Departments', action: 'Manage', assignedRoles: 2, status: 'Active', createdAt: 'Jan 16, 2024' },
-  { id: 6, name: 'roles.create', label: 'Create Roles', resource: 'Roles', action: 'Create', assignedRoles: 1, status: 'Inactive', createdAt: 'Jan 17, 2024' },
-  { id: 7, name: 'reports.read', label: 'View Reports', resource: 'Reports', action: 'Read', assignedRoles: 4, status: 'Active', createdAt: 'Jan 20, 2024' },
-  { id: 8, name: 'reports.export', label: 'Export Reports', resource: 'Reports', action: 'Export', assignedRoles: 3, status: 'Active', createdAt: 'Jan 20, 2024' },
-  { id: 9, name: 'reports.schedule', label: 'Schedule Reports', resource: 'Reports', action: 'Schedule', assignedRoles: 2, status: 'Active', createdAt: 'Jan 21, 2024' },
-  { id: 10, name: 'audit.read', label: 'View Audit Logs', resource: 'Audit Logs', action: 'Read', assignedRoles: 1, status: 'Active', createdAt: 'Jan 22, 2024' },
-  { id: 11, name: 'audit.export', label: 'Export Audit Logs', resource: 'Audit Logs', action: 'Export', assignedRoles: 1, status: 'Inactive', createdAt: 'Jan 22, 2024' },
-  { id: 12, name: 'projects.create', label: 'Create Projects', resource: 'Projects', action: 'Create', assignedRoles: 3, status: 'Active', createdAt: 'Feb 01, 2024' },
-  { id: 13, name: 'tasks.create', label: 'Create Tasks', resource: 'Tasks', action: 'Create', assignedRoles: 5, status: 'Active', createdAt: 'Feb 05, 2024' },
-  { id: 14, name: 'tasks.delete', label: 'Delete Tasks', resource: 'Tasks', action: 'Delete', assignedRoles: 2, status: 'Active', createdAt: 'Feb 05, 2024' },
-];
-
-const RESOURCE_FILTERS = ['All', 'Users', 'Departments', 'Roles', 'Reports', 'Audit Logs', 'Projects', 'Tasks'];
+const RESOURCE_FILTERS = ['All', 'Users', 'Departments', 'Roles', 'Permissions', 'Reports', 'Audit Logs', 'Projects', 'Tasks'];
 
 export default function AdminPermissions() {
   const navigate = useNavigate();
-  const [permissions, setPermissions] = useState(mockPermissions);
+  const [permissions, setPermissions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [resourceFilter, setResourceFilter] = useState('All');
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 10;
+
+  const fetchPermissions = async () => {
+    setLoading(true);
+    try {
+      const res = await adminAPI.getPermissions();
+      setPermissions(res.data.data || []);
+    } catch (err) {
+      toast.error('Failed to load permissions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPermissions();
+  }, []);
 
   // Derived filtered list
   const filteredPermissions = permissions.filter(p => {
@@ -45,7 +47,7 @@ export default function AdminPermissions() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedRows(paginatedPermissions.map(p => p.id));
+      setSelectedRows(paginatedPermissions.map(p => p._id));
     } else {
       setSelectedRows([]);
     }
@@ -59,13 +61,35 @@ export default function AdminPermissions() {
     }
   };
 
-  const toggleStatus = (id) => {
-    setPermissions(permissions.map(p => {
-      if (p.id === id) {
-        return { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' };
-      }
-      return p;
-    }));
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const executeDelete = async () => {
+    if (deleteTarget.ids) {
+      // bulk — no deletePermission API exists yet, log TODO
+      console.warn('TODO: bulk permission delete endpoint not implemented');
+      setDeleteTarget(null);
+      return;
+    }
+    // single — no deletePermission API either; mark inactive as fallback
+    await adminAPI.updatePermissionStatus(deleteTarget.id, 'Inactive');
+    setDeleteTarget(null);
+    await fetchPermissions();
+  };
+
+  const toggleStatus = async (id, currentStatus) => {
+    const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await adminAPI.updatePermissionStatus(id, newStatus);
+      setPermissions(permissions.map(p => {
+        if (p._id === id) {
+          return { ...p, status: newStatus };
+        }
+        return p;
+      }));
+      toast.success(`Permission ${newStatus === 'Active' ? 'activated' : 'deactivated'}`);
+    } catch (err) {
+      toast.error('Failed to update status');
+    }
   };
 
   const getResourceColor = (resource) => {
@@ -150,7 +174,7 @@ export default function AdminPermissions() {
               <div className="flex items-center gap-2">
                 <button className="text-sm font-medium text-[#2563EB] bg-white border border-[#BFDBFE] hover:bg-[#DBEAFE] px-3 py-1.5 rounded transition-colors">Activate</button>
                 <button className="text-sm font-medium text-[#475569] bg-white border border-[#CBD5E1] hover:bg-[#F1F5F9] px-3 py-1.5 rounded transition-colors">Deactivate</button>
-                <button className="text-sm font-medium text-[#DC2626] bg-white border border-[#FECACA] hover:bg-[#FEE2E2] px-3 py-1.5 rounded transition-colors">Delete</button>
+                <button onClick={() => setDeleteTarget({ ids: selectedRows, name: `${selectedRows.length} selected permission(s)` })} className="text-sm font-medium text-[#DC2626] bg-white border border-[#FECACA] hover:bg-[#FEE2E2] px-3 py-1.5 rounded transition-colors">Delete</button>
               </div>
             </motion.div>
           )}
@@ -180,13 +204,28 @@ export default function AdminPermissions() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedPermissions.map(p => (
-                  <tr key={p.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0">
+                {loading ? (
+                  <tr>
+                    <td colSpan="8" className="px-4 py-8 text-center text-[#64748B]">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+                        Loading permissions...
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedPermissions.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="px-4 py-8 text-center text-sm text-[#64748B]">
+                      No permissions found matching your criteria.
+                    </td>
+                  </tr>
+                ) : paginatedPermissions.map(p => (
+                  <tr key={p._id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0">
                     <td className="px-4 py-3 text-center">
                       <input 
                         type="checkbox" 
-                        checked={selectedRows.includes(p.id)}
-                        onChange={() => handleSelectRow(p.id)}
+                        checked={selectedRows.includes(p._id)}
+                        onChange={() => handleSelectRow(p._id)}
                         className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB] cursor-pointer" 
                       />
                     </td>
@@ -212,24 +251,31 @@ export default function AdminPermissions() {
                         onClick={() => navigate('/admin/access-matrix')}
                         className="inline-flex px-2 py-1 bg-white border border-[#E2E8F0] hover:bg-[#F1F5F9] hover:border-[#CBD5E1] rounded text-xs font-medium text-[#475569] transition-colors"
                       >
-                        {p.assignedRoles} Roles
+                        {p.assignedRolesCount || 0} Roles
                       </button>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${p.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'}`}>
-                        {p.status}
+                        {p.status || 'Active'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-[#64748B]">
-                      {p.createdAt}
+                      {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-3">
                         <button className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="Edit">
                           <Edit2 size={16} />
                         </button>
-                        <button 
-                          onClick={() => toggleStatus(p.id)}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: p._id, name: p.name }); }}
+                          className="text-[#64748B] hover:text-[#DC2626] transition-colors"
+                          title="Delete permission"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => toggleStatus(p._id, p.status)}
                           className={`transition-colors ${p.status === 'Active' ? 'text-[#64748B] hover:text-[#DC2626]' : 'text-[#64748B] hover:text-[#16A34A]'}`} 
                           title={p.status === 'Active' ? 'Deactivate' : 'Activate'}
                         >
@@ -239,13 +285,6 @@ export default function AdminPermissions() {
                     </td>
                   </tr>
                 ))}
-                {paginatedPermissions.length === 0 && (
-                  <tr>
-                    <td colSpan="8" className="px-4 py-8 text-center text-sm text-[#64748B]">
-                      No permissions found matching your criteria.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -275,8 +314,16 @@ export default function AdminPermissions() {
             </div>
           )}
         </div>
-        
+
       </div>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        entityName={deleteTarget?.name}
+        entityLabel={deleteTarget?.ids ? 'selection' : 'permission'}
+        onConfirm={executeDelete}
+      />
     </PageWrapper>
   );
 }

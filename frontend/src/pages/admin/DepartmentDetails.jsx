@@ -1,26 +1,64 @@
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import PageWrapper from '../../components/PageWrapper';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { adminAPI } from '../../utils/api';
 
 export default function AdminDepartmentDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const dept = {
-    id: id || '1',
-    name: 'Engineering',
-    head: 'Sarah Johnson',
-    desc: 'Responsible for core platform development, infrastructure, and technical operations.',
-    status: 'Active',
-    created: 'Jan 15, 2023',
-    totalUsers: 142,
-    activeUsers: 138,
-    roles: ['Employee', 'Intern', 'Admin']
+  const [dept, setDept] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [toggling, setToggling] = useState(false);
+
+  useEffect(() => {
+    const fetchDeptData = async () => {
+      try {
+        const [deptRes, usersRes] = await Promise.all([
+          adminAPI.getDepartment(id),
+          adminAPI.getUsers({ department: id, limit: 100 })
+        ]);
+        setDept(deptRes.data.data);
+        setUsers(usersRes.data.data || []);
+      } catch (err) {
+        toast.error('Failed to load department details');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDeptData();
+  }, [id]);
+
+  const handleArchive = async () => {
+    setToggling(true);
+    try {
+      await adminAPI.updateDepartment(id, { status: dept.status === 'Active' ? 'Inactive' : 'Active' });
+      toast.success(`Department ${dept.status === 'Active' ? 'archived' : 'activated'}`);
+      setArchiveOpen(false);
+      const res = await adminAPI.getDepartment(id);
+      setDept(res.data.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update department');
+    } finally {
+      setToggling(false);
+    }
   };
 
-  const users = [
-    { id: '1024', name: 'Michael Chen', role: 'Employee', status: 'Active', email: 'michael.chen@movicloud.com', joined: 'Oct 12, 2024' },
-    { id: '1028', name: 'James Wilson', role: 'Intern', status: 'Active', email: 'j.wilson@movicloud.com', joined: 'Dec 01, 2024' },
-  ];
+  if (loading) {
+    return (
+      <PageWrapper>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="w-8 h-8 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  if (!dept) return null;
 
   return (
     <PageWrapper>
@@ -41,24 +79,27 @@ export default function AdminDepartmentDetails() {
               <div>
                 <h1 className="text-[24px] font-semibold tracking-tight text-[#0F172A] flex items-center gap-3">
                   {dept.name}
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#16A34A]/10 text-[#16A34A] tracking-wide">
-                    {dept.status.toUpperCase()}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${dept.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'} tracking-wide`}>
+                    {(dept.status || 'Active').toUpperCase()}
                   </span>
                 </h1>
-                <p className="text-[14px] text-[#64748B] mt-0.5">Head: <span className="text-[#2563EB] hover:underline cursor-pointer">{dept.head}</span></p>
+                <p className="text-[14px] text-[#64748B] mt-0.5">Head: <span className="text-[#2563EB] hover:underline cursor-pointer">{dept.head?.name || 'Unassigned'}</span></p>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button className="border border-[#E2E8F0] text-[#0F172A] px-3 py-1.5 rounded text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors flex items-center gap-2">
-              <span className="material-symbols-outlined text-[16px]">person_add</span>
-              Assign Head
-            </button>
-            <button className="border border-[#E2E8F0] text-[#DC2626] hover:bg-[#DC2626]/5 px-3 py-1.5 rounded text-[13px] font-medium transition-colors flex items-center gap-2">
+            <button
+              onClick={() => setArchiveOpen(true)}
+              disabled={toggling}
+              className="border border-[#E2E8F0] text-[#DC2626] hover:bg-[#DC2626]/5 px-3 py-1.5 rounded text-[13px] font-medium transition-colors flex items-center gap-2 disabled:opacity-60"
+            >
               <span className="material-symbols-outlined text-[16px]">archive</span>
-              Archive
+              {dept.status === 'Active' ? 'Archive' : 'Activate'}
             </button>
-            <button className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-4 py-1.5 rounded text-[13px] font-medium transition-colors flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/admin/departments/${id}/edit`)}
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-4 py-1.5 rounded text-[13px] font-medium transition-colors flex items-center gap-2"
+            >
               <span className="material-symbols-outlined text-[16px]">edit</span>
               Edit
             </button>
@@ -74,19 +115,17 @@ export default function AdminDepartmentDetails() {
             <div className="p-5 space-y-6">
               <div>
                 <span className="block text-[12px] font-medium text-[#64748B] uppercase tracking-wider mb-1">Description</span>
-                <span className="text-[14px] text-[#0F172A] leading-relaxed">{dept.desc}</span>
+                <span className="text-[14px] text-[#0F172A] leading-relaxed">{dept.description || 'No description provided.'}</span>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="block text-[12px] font-medium text-[#64748B] uppercase tracking-wider mb-1">Created Date</span>
-                  <span className="text-[14px] text-[#0F172A]">{dept.created}</span>
+                  <span className="text-[14px] text-[#0F172A]">{new Date(dept.createdAt).toLocaleDateString()}</span>
                 </div>
                 <div>
-                  <span className="block text-[12px] font-medium text-[#64748B] uppercase tracking-wider mb-1">Assigned Roles</span>
-                  <div className="flex gap-2 mt-1">
-                    {dept.roles.map(r => (
-                      <span key={r} className="bg-[#F1F5F9] border border-[#E2E8F0] text-[#475569] text-[11px] font-medium px-2 py-0.5 rounded">{r}</span>
-                    ))}
+                  <span className="block text-[12px] font-medium text-[#64748B] uppercase tracking-wider mb-1">Parent Department</span>
+                  <div className="text-[14px] text-[#0F172A]">
+                    {dept.parentDepartment?.name || 'None (Top Level)'}
                   </div>
                 </div>
               </div>
@@ -101,14 +140,14 @@ export default function AdminDepartmentDetails() {
             <div className="p-5 space-y-5">
               <div className="flex justify-between items-center">
                 <span className="text-[13px] font-medium text-[#64748B] uppercase">Total Users</span>
-                <span className="text-[20px] font-medium text-[#0F172A]">{dept.totalUsers}</span>
+                <span className="text-[20px] font-medium text-[#0F172A]">{users.length}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[13px] font-medium text-[#64748B] uppercase">Active Users</span>
-                <span className="text-[20px] font-medium text-[#16A34A]">{dept.activeUsers}</span>
+                <span className="text-[20px] font-medium text-[#16A34A]">{users.filter(u => u.status === 'Active').length}</span>
               </div>
               <div className="w-full bg-[#E2E8F0] rounded-full h-1.5 mt-2 overflow-hidden">
-                <div className="bg-[#16A34A] h-1.5" style={{ width: `${(dept.activeUsers / dept.totalUsers) * 100}%` }}></div>
+                <div className="bg-[#16A34A] h-1.5" style={{ width: `${users.length ? (users.filter(u => u.status === 'Active').length / users.length) * 100 : 0}%` }}></div>
               </div>
             </div>
           </div>
@@ -137,26 +176,26 @@ export default function AdminDepartmentDetails() {
               </thead>
               <tbody>
                 {users.map(u => (
-                  <tr key={u.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
+                  <tr key={u._id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-3 cursor-pointer hover:underline text-[#0F172A]" onClick={() => navigate(`/admin/users/${u.id}`)}>
+                      <div className="flex items-center gap-3 cursor-pointer hover:underline text-[#0F172A]" onClick={() => navigate(`/admin/users/${u._id}`)}>
                         <div className="w-7 h-7 rounded-full bg-[#E2E8F0] text-[#64748B] flex items-center justify-center font-bold text-[11px]">
-                          {u.name.split(' ').map(n=>n[0]).join('')}
+                          {u.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}
                         </div>
                         <span className="text-[13px] font-medium">{u.name}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-[13px] text-[#64748B]">{u.role}</td>
+                    <td className="px-5 py-3 text-[13px] text-[#64748B]">{u.role?.name || 'N/A'}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${u.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'}`}>
                         {u.status}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-[13px] text-[#64748B]">{u.email}</td>
-                    <td className="px-5 py-3 text-[13px] text-[#64748B]">{u.joined}</td>
+                    <td className="px-5 py-3 text-[13px] text-[#64748B]">{new Date(u.createdAt).toLocaleDateString()}</td>
                     <td className="px-5 py-3 text-right">
-                      <button className="text-[#64748B] hover:text-[#2563EB]">
-                        <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                      <button onClick={() => navigate(`/admin/users/${u._id}`)} className="text-[#64748B] hover:text-[#2563EB]" title="View user">
+                        <span className="material-symbols-outlined text-[18px]">visibility</span>
                       </button>
                     </td>
                   </tr>
@@ -165,12 +204,20 @@ export default function AdminDepartmentDetails() {
             </table>
           </div>
           <div className="px-5 py-3 border-t border-[#E2E8F0] bg-white flex justify-between items-center text-[13px] text-[#64748B]">
-            Showing 1 to 2 of 142 users
-            <button className="text-[#2563EB] font-medium hover:underline">View All Users</button>
+            Showing {users.length} users
+            <button onClick={() => navigate('/admin/users')} className="text-[#2563EB] font-medium hover:underline">View All Users</button>
           </div>
         </div>
 
       </div>
+
+      <ConfirmDialog
+        isOpen={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        entityName={dept.name}
+        entityLabel="department"
+        onConfirm={handleArchive}
+      />
     </PageWrapper>
   );
 }

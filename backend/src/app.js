@@ -6,6 +6,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
 
 // Route imports
 import authRoutes from './routes/auth.routes.js';
@@ -15,6 +16,7 @@ import adminRoleRoutes from './routes/admin/roles.routes.js';
 import adminPermRoutes from './routes/admin/permissions.routes.js';
 import adminMatrixRoutes from './routes/admin/accessMatrix.routes.js';
 import adminAuditRoutes from './routes/admin/auditLogs.routes.js';
+import adminReportsRoutes from './routes/admin/reports.routes.js';
 import adminSettingsRoutes from './routes/admin/settings.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 
@@ -80,7 +82,7 @@ if (process.env.NODE_ENV === 'development') {
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: process.env.NODE_ENV === 'development' ? 2000 : 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
@@ -101,11 +103,22 @@ app.use('/api/auth/login', authLimiter);
 // ─── Static Files ─────────────────────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => {
-  res.json({
+// ─── Health Check Routes ──────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.status(200).json({
     success: true,
     message: 'OWMS API is running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: 'healthy',
+    mongoConnection: mongoose.connection.readyState === 1
+      ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString(),
     env: process.env.NODE_ENV,
   });
@@ -119,6 +132,7 @@ app.use('/api/admin/roles', adminRoleRoutes);
 app.use('/api/admin/permissions', adminPermRoutes);
 app.use('/api/admin/access-matrix', adminMatrixRoutes);
 app.use('/api/admin/audit-logs', adminAuditRoutes);
+app.use('/api/admin/reports', adminReportsRoutes);
 app.use('/api/admin/settings', adminSettingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 

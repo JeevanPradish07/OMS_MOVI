@@ -181,14 +181,9 @@ const seedData = async () => {
     const emp = users[3];
     const intern = users[4];
 
-    // Assign Managers
-    emp.manager = pmo._id;
-    emp.hrManager = hr._id;
-    intern.mentor = emp._id;
-    intern.pmoLead = pmo._id;
-    intern.hrManager = hr._id;
-    await emp.save({ validateBeforeSave: false });
-    await intern.save({ validateBeforeSave: false });
+    // Assign Managers — use updateOne to avoid triggering the pre-save password hash hook
+    await User.updateOne({ _id: emp._id },   { manager: pmo._id, hrManager: hr._id });
+    await User.updateOne({ _id: intern._id }, { mentor: emp._id, pmoLead: pmo._id, hrManager: hr._id });
 
     // Project
     const project = await Project.create({

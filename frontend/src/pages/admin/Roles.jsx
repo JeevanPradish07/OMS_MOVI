@@ -1,27 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import PageWrapper from '../../components/PageWrapper';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { adminAPI } from '../../utils/api';
 
 export default function AdminRoles() {
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState([]);
-  
-  const mockRoles = [
-    { id: '1', name: 'Administrator', users: 5, status: 'Active', type: 'System Default', created: 'Jan 15, 2023' },
-    { id: '2', name: 'HR Manager', users: 8, status: 'Active', type: 'System Default', created: 'Jan 15, 2023' },
-    { id: '3', name: 'PMO Manager', users: 12, status: 'Active', type: 'System Default', created: 'Jan 15, 2023' },
-    { id: '4', name: 'Employee', users: 192, status: 'Active', type: 'System Default', created: 'Jan 15, 2023' },
-    { id: '5', name: 'Intern', users: 28, status: 'Active', type: 'System Default', created: 'Jan 15, 2023' },
-    { id: '6', name: 'Department Coordinator', users: 4, status: 'Active', type: 'Custom', created: 'Nov 12, 2023' },
-    { id: '7', name: 'Guest Access', users: 0, status: 'Inactive', type: 'Custom', created: 'Dec 05, 2023' },
-  ];
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchRoles = async () => {
+    setLoading(true);
+    try {
+      const res = await adminAPI.getRoles();
+      setRoles(res.data.data || []);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch roles');
+      toast.error('Failed to load roles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRoles();
+  }, []);
 
   const handleSelectAll = (e) => {
-    setSelectedIds(e.target.checked ? mockRoles.map(r => r.id) : []);
+    setSelectedIds(e.target.checked ? roles.map(r => r._id) : []);
   };
 
   const handleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const executeDelete = async () => {
+    await adminAPI.deleteRole(deleteTarget.id);
+    setDeleteTarget(null);
+    await fetchRoles();
   };
 
   return (
@@ -73,7 +96,7 @@ export default function AdminRoles() {
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                   <th className="px-4 py-3 w-10 text-center">
-                    <input type="checkbox" onChange={handleSelectAll} checked={selectedIds.length === mockRoles.length && mockRoles.length > 0} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
+                    <input type="checkbox" onChange={handleSelectAll} checked={selectedIds.length === roles.length && roles.length > 0} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
                   </th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-[#64748B] uppercase">Role Name</th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-[#64748B] uppercase">Type</th>
@@ -84,49 +107,80 @@ export default function AdminRoles() {
                 </tr>
               </thead>
               <tbody>
-                {mockRoles.map((role) => (
-                  <tr key={role.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
-                    <td className="px-4 py-3 text-center">
-                      <input type="checkbox" checked={selectedIds.includes(role.id)} onChange={() => handleSelect(role.id)} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span onClick={() => navigate(`/admin/roles/${role.id}`)} className="text-[14px] font-medium text-[#0F172A] cursor-pointer hover:underline">{role.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${role.type === 'System Default' ? 'bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]' : 'bg-[#E0E7FF] text-[#4338CA] border border-[#C7D2FE]'}`}>
-                        {role.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B] font-mono">{role.users}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${role.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'}`}>
-                        {role.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">{role.created}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => navigate(`/admin/roles/${role.id}`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="View Details">
-                          <span className="material-symbols-outlined text-[18px]">visibility</span>
-                        </button>
-                        <button className="text-[#64748B] hover:text-[#0F172A] transition-colors" title="More actions">
-                          <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                        </button>
+                {loading ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-8 text-center text-[#64748B]">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+                        Loading roles...
                       </div>
                     </td>
                   </tr>
-                ))}
+                ) : error ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-8 text-center text-[#DC2626]">{error}</td>
+                  </tr>
+                ) : roles.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-8 text-center text-[#64748B]">No roles found.</td>
+                  </tr>
+                ) : (
+                  roles.map((role) => (
+                    <tr key={role._id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
+                      <td className="px-4 py-3 text-center">
+                        <input type="checkbox" checked={selectedIds.includes(role._id)} onChange={() => handleSelect(role._id)} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <span onClick={() => navigate(`/admin/roles/${role._id}`)} className="text-[14px] font-medium text-[#0F172A] cursor-pointer hover:underline">{role.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${role.isSystem ? 'bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]' : 'bg-[#E0E7FF] text-[#4338CA] border border-[#C7D2FE]'}`}>
+                          {role.isSystem ? 'System Default' : 'Custom'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B] font-mono">{role.userCount || 0}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${role.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'}`}>
+                          {role.status || 'Active'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">{role.createdAt ? new Date(role.createdAt).toLocaleDateString() : 'N/A'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => navigate(`/admin/roles/${role._id}`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="View Details">
+                            <span className="material-symbols-outlined text-[18px]">visibility</span>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: role._id, name: role.name }); }}
+                            className="text-[#64748B] hover:text-[#DC2626] transition-colors"
+                            title="Delete role"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
           <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between bg-white">
-            <p className="text-[13px] text-[#64748B]">Showing <span className="font-medium text-[#0F172A]">1</span> to <span className="font-medium text-[#0F172A]">7</span> of <span className="font-medium text-[#0F172A]">7</span> results</p>
+            <p className="text-[13px] text-[#64748B]">Showing <span className="font-medium text-[#0F172A]">{roles.length}</span> results</p>
           </div>
         </div>
 
       </div>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        entityName={deleteTarget?.name}
+        entityLabel="role"
+        onConfirm={executeDelete}
+      />
     </PageWrapper>
   );
 }

@@ -1,22 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import PageWrapper from '../../components/PageWrapper';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { adminAPI } from '../../utils/api';
 
 export default function AdminUsers() {
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState([]);
-  
-  const mockUsers = [
-    { id: '1024', name: 'Michael Chen', email: 'michael.chen@movicloud.com', department: 'Engineering', role: 'Employee', status: 'Active', created: 'Oct 12, 2024' },
-    { id: '1025', name: 'Sarah Johnson', email: 'sarah.j@movicloud.com', department: 'Human Resources', role: 'HR Manager', status: 'Active', created: 'Oct 14, 2024' },
-    { id: '1026', name: 'David Smith', email: 'd.smith@movicloud.com', department: 'Finance', role: 'Employee', status: 'Inactive', created: 'Nov 02, 2024' },
-    { id: '1027', name: 'Emily Davis', email: 'emily.d@movicloud.com', department: 'Product', role: 'PMO Manager', status: 'Active', created: 'Nov 05, 2024' },
-    { id: '1028', name: 'James Wilson', email: 'j.wilson@movicloud.com', department: 'Engineering', role: 'Intern', status: 'Active', created: 'Dec 01, 2024' },
-  ];
 
+  // ── Real data state ─────────────────────────────────────────────────────
+  const [users, setUsers]           = useState([]);
+  const [pagination, setPagination] = useState({});
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState('');
+  const [currentPage, setCurrentPage]         = useState(1);
+  const [searchQuery, setSearchQuery]         = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('All');
+  const [statusFilter, setStatusFilter]         = useState('All');
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await adminAPI.getUsers({
+        page: currentPage,
+        limit: 25,
+        search: searchQuery || undefined,
+        department: departmentFilter !== 'All' ? departmentFilter : undefined,
+        status: statusFilter !== 'All' ? statusFilter : undefined,
+      });
+      setUsers(response.data.data);
+      setPagination(response.data.pagination || {});
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load users');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, searchQuery, departmentFilter, statusFilter]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // ── Selection helpers ────────────────────────────────────────────────────
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedIds(mockUsers.map(u => u.id));
+      setSelectedIds(users.map(u => u._id));
     } else {
       setSelectedIds([]);
     }
@@ -26,17 +57,60 @@ export default function AdminUsers() {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  // deleteTarget = { id, name } for single | { ids, name } for bulk
+
+  const executeSingleDelete = async () => {
+    await adminAPI.deleteUser(deleteTarget.id);
+    setDeleteTarget(null);
+    await fetchUsers();
+  };
+
+  const executeBulkDelete = async () => {
+    await Promise.all(deleteTarget.ids.map(id => adminAPI.deleteUser(id)));
+    setSelectedIds([]);
+    setDeleteTarget(null);
+    await fetchUsers();
+  };
+
+  // ── Helper: display name for role ────────────────────────────────────────
+  const getRoleName = (user) => user.role?.name || user.role || '—';
+  const getDeptName = (user) => user.department?.name || user.department || '—';
+  const getStatus   = (user) => user.status || 'Active';
+  const getCreated  = (user) => {
+    const d = user.createdAt || user.created;
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // ── Stats from pagination ─────────────────────────────────────────────────
+  const total      = pagination.total  ?? users.length;
+  const totalPages = pagination.pages  ?? 1;
+  const hasPrev    = pagination.hasPrev ?? currentPage > 1;
+  const hasNext    = pagination.hasNext ?? currentPage < totalPages;
+
+  // ── Loading skeleton ──────────────────────────────────────────────────────
+  const SkeletonRow = () => (
+    <tr className="border-b border-[#F1F5F9] animate-pulse">
+      {[...Array(8)].map((_, i) => (
+        <td key={i} className="px-4 py-3">
+          <div className="h-4 bg-[#E2E8F0] rounded w-full" />
+        </td>
+      ))}
+    </tr>
+  );
+
   return (
     <PageWrapper>
       <div className="font-sans text-[#0F172A] w-full flex flex-col h-full gap-6">
-        
+
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-[24px] font-semibold tracking-tight text-[#0F172A]">Users</h1>
             <p className="text-[14px] text-[#64748B] mt-1">Manage user accounts, roles, and system access.</p>
           </div>
-          <button 
+          <button
             onClick={() => navigate('/admin/users/new')}
             className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-4 py-2 rounded text-[13px] font-medium transition-colors flex items-center gap-2"
           >
@@ -53,7 +127,9 @@ export default function AdminUsers() {
                <span className="material-symbols-outlined text-[18px] text-[#2563EB] bg-[#2563EB]/10 p-1 rounded">group</span>
             </div>
             <div className="flex items-end gap-2 mt-2">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">245</span>
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">
+                {loading ? '—' : total}
+              </span>
             </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
@@ -62,30 +138,41 @@ export default function AdminUsers() {
                <span className="material-symbols-outlined text-[18px] text-[#16A34A] bg-[#16A34A]/10 p-1 rounded">how_to_reg</span>
             </div>
             <div className="flex items-end justify-between mt-2">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">238</span>
-              <span className="text-[11px] font-bold text-[#16A34A] bg-[#16A34A]/10 px-1.5 py-0.5 rounded">97%</span>
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">
+                {loading ? '—' : users.filter(u => getStatus(u) === 'Active').length}
+              </span>
             </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
             <div className="flex justify-between items-start">
-               <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">New This Week</span>
-               <span className="material-symbols-outlined text-[18px] text-[#0F172A] bg-[#F1F5F9] p-1 rounded">person_add</span>
+               <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Total Pages</span>
+               <span className="material-symbols-outlined text-[18px] text-[#0F172A] bg-[#F1F5F9] p-1 rounded">layers</span>
             </div>
             <div className="flex items-end gap-2 mt-2">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">12</span>
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">{loading ? '—' : totalPages}</span>
             </div>
           </div>
           <div className="bg-white border border-[#E2E8F0] rounded-md p-4 shadow-sm flex flex-col justify-between h-[96px]">
             <div className="flex justify-between items-start">
-               <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Pending Activation</span>
+               <span className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wider">Inactive Users</span>
                <span className="material-symbols-outlined text-[18px] text-[#D97706] bg-[#F59E0B]/10 p-1 rounded">pending_actions</span>
             </div>
             <div className="flex items-end justify-between mt-2">
-              <span className="text-[24px] font-medium text-[#0F172A] leading-none">3</span>
-              <span className="text-[11px] font-bold text-[#D97706] bg-[#F59E0B]/10 px-1.5 py-0.5 rounded uppercase">Action Req</span>
+              <span className="text-[24px] font-medium text-[#0F172A] leading-none">
+                {loading ? '—' : users.filter(u => getStatus(u) !== 'Active').length}
+              </span>
             </div>
           </div>
         </div>
+
+        {/* Error Banner */}
+        {error && (
+          <div className="bg-[#FEF2F2] border border-[#DC2626] rounded-lg p-3 text-sm text-[#DC2626] font-medium flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]">error</span>
+            {error}
+            <button onClick={fetchUsers} className="ml-auto text-xs underline">Retry</button>
+          </div>
+        )}
 
         {/* Toolbar */}
         <div className="bg-white border border-[#E2E8F0] rounded-md p-3 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -96,12 +183,19 @@ export default function AdminUsers() {
                 className="w-full border border-[#E2E8F0] rounded py-1.5 pl-9 pr-3 text-[13px] focus:outline-none focus:border-[#2563EB] transition-colors"
                 placeholder="Search users..."
                 type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               />
             </div>
-            <button className="border border-[#E2E8F0] text-[#0F172A] px-3 py-1.5 rounded text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors flex items-center gap-2">
-              <span className="material-symbols-outlined text-[16px]">filter_list</span>
-              Filters
-            </button>
+            <select
+              className="border border-[#E2E8F0] text-[#0F172A] px-2 py-1.5 rounded text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors"
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+            >
+              <option value="All">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
           </div>
           <div className="flex items-center gap-3">
             {selectedIds.length > 0 && (
@@ -109,9 +203,13 @@ export default function AdminUsers() {
                 <span className="text-[13px] text-[#64748B] font-medium">{selectedIds.length} selected</span>
                 <button className="text-[12px] font-medium text-[#0F172A] bg-[#F1F5F9] hover:bg-[#E2E8F0] px-2 py-1 rounded transition-colors">Activate</button>
                 <button className="text-[12px] font-medium text-[#0F172A] bg-[#F1F5F9] hover:bg-[#E2E8F0] px-2 py-1 rounded transition-colors">Deactivate</button>
-                <button className="text-[12px] font-medium text-[#DC2626] bg-[#DC2626]/10 hover:bg-[#DC2626]/20 px-2 py-1 rounded transition-colors">Delete</button>
+                <button onClick={() => setDeleteTarget({ ids: selectedIds, name: `${selectedIds.length} selected user(s)` })} className="text-[12px] font-medium text-[#DC2626] bg-[#DC2626]/10 hover:bg-[#DC2626]/20 px-2 py-1 rounded transition-colors">Delete</button>
               </div>
             )}
+            <button onClick={fetchUsers} className="border border-[#E2E8F0] text-[#0F172A] px-3 py-1.5 rounded text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors flex items-center gap-2">
+              <span className="material-symbols-outlined text-[16px]">refresh</span>
+              Refresh
+            </button>
             <button className="border border-[#E2E8F0] text-[#0F172A] px-3 py-1.5 rounded text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px]">download</span>
               Export
@@ -126,7 +224,12 @@ export default function AdminUsers() {
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                   <th className="px-4 py-3 w-10 text-center">
-                    <input type="checkbox" onChange={handleSelectAll} checked={selectedIds.length === mockUsers.length && mockUsers.length > 0} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
+                    <input
+                      type="checkbox"
+                      onChange={handleSelectAll}
+                      checked={!loading && users.length > 0 && selectedIds.length === users.length}
+                      className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]"
+                    />
                   </th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-[#64748B] uppercase">Name</th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-[#64748B] uppercase">Employee ID</th>
@@ -139,61 +242,102 @@ export default function AdminUsers() {
                 </tr>
               </thead>
               <tbody>
-                {mockUsers.map((user) => (
-                  <tr key={user.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
-                    <td className="px-4 py-3 text-center">
-                      <input type="checkbox" checked={selectedIds.includes(user.id)} onChange={() => handleSelect(user.id)} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#E2E8F0] text-[#64748B] flex items-center justify-center font-bold text-[12px]">
-                          {user.name.split(' ').map(n=>n[0]).join('')}
-                        </div>
-                        <span className="text-[14px] font-medium text-[#0F172A]">{user.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B] font-mono">{user.id}</td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">{user.department}</td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">{user.role}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
-                        user.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'
-                      }`}>
-                        {user.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">{user.email}</td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">{user.created}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => navigate(`/admin/users/${user.id}`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="View Details">
-                          <span className="material-symbols-outlined text-[18px]">visibility</span>
-                        </button>
-                        <button className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="Edit">
-                          <span className="material-symbols-outlined text-[18px]">edit</span>
-                        </button>
-                        <button className="text-[#64748B] hover:text-[#0F172A] transition-colors" title="More actions">
-                          <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                        </button>
-                      </div>
+                {loading ? (
+                  [...Array(5)].map((_, i) => <SkeletonRow key={i} />)
+                ) : users.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-12 text-center text-[#64748B] text-sm">
+                      <span className="material-symbols-outlined text-[40px] text-[#CBD5E1] block mb-2">group</span>
+                      No users found.{searchQuery && ' Try clearing your search.'}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  users.map((user) => (
+                    <tr key={user._id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
+                      <td className="px-4 py-3 text-center">
+                        <input type="checkbox" checked={selectedIds.includes(user._id)} onChange={() => handleSelect(user._id)} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#E2E8F0] text-[#64748B] flex items-center justify-center font-bold text-[12px]">
+                            {(user.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </div>
+                          <span className="text-[14px] font-medium text-[#0F172A]">{user.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B] font-mono">{user.employeeId || user._id?.slice(-6)}</td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">{getDeptName(user)}</td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">{getRoleName(user)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
+                          getStatus(user) === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'
+                        }`}>
+                          {getStatus(user)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">{user.email}</td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">{getCreated(user)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => navigate(`/admin/users/${user._id}`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="View Details">
+                            <span className="material-symbols-outlined text-[18px]">visibility</span>
+                          </button>
+                          <button onClick={() => navigate(`/admin/users/${user._id}/edit`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="Edit">
+                            <span className="material-symbols-outlined text-[18px]">edit</span>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: user._id, name: user.name }); }}
+                            className="text-[#64748B] hover:text-[#DC2626] transition-colors"
+                            title="Delete user"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination */}
           <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between bg-white">
-            <p className="text-[13px] text-[#64748B]">Showing <span className="font-medium text-[#0F172A]">1</span> to <span className="font-medium text-[#0F172A]">5</span> of <span className="font-medium text-[#0F172A]">245</span> results</p>
+            <p className="text-[13px] text-[#64748B]">
+              {loading ? (
+                'Loading...'
+              ) : (
+                <>Showing <span className="font-medium text-[#0F172A]">{users.length}</span> of <span className="font-medium text-[#0F172A]">{total}</span> results — Page <span className="font-medium text-[#0F172A]">{currentPage}</span> of <span className="font-medium text-[#0F172A]">{totalPages}</span></>
+              )}
+            </p>
             <div className="flex gap-1">
-              <button className="p-1 border border-[#E2E8F0] rounded text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">chevron_left</span></button>
-              <button className="p-1 border border-[#E2E8F0] rounded text-[#64748B] hover:bg-[#F8FAFC]"><span className="material-symbols-outlined text-[18px]">chevron_right</span></button>
+              <button
+                disabled={!hasPrev}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="p-1 border border-[#E2E8F0] rounded text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              </button>
+              <button
+                disabled={!hasNext}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="p-1 border border-[#E2E8F0] rounded text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              </button>
             </div>
           </div>
         </div>
 
       </div>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        entityName={deleteTarget?.name}
+        entityLabel={deleteTarget?.ids ? 'selection' : 'user'}
+        onConfirm={deleteTarget?.ids ? executeBulkDelete : executeSingleDelete}
+      />
     </PageWrapper>
   );
 }

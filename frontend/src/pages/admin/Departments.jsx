@@ -1,22 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import PageWrapper from '../../components/PageWrapper';
+import ConfirmDialog from '../../components/shared/ConfirmDialog';
+import { adminAPI } from '../../utils/api';
 
 export default function AdminDepartments() {
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState([]);
-  
-  const mockDepartments = [
-    { id: '1', name: 'Engineering', head: 'Sarah Johnson', users: 142, status: 'Active', created: 'Jan 15, 2023' },
-    { id: '2', name: 'Human Resources', head: 'Michael Chen', users: 8, status: 'Active', created: 'Feb 01, 2023' },
-    { id: '3', name: 'Finance', head: 'David Smith', users: 12, status: 'Active', created: 'Mar 10, 2023' },
-    { id: '4', name: 'Product Management', head: 'Emily Davis', users: 24, status: 'Active', created: 'Mar 15, 2023' },
-    { id: '5', name: 'Marketing', head: 'Unassigned', users: 18, status: 'Inactive', created: 'Apr 05, 2023' },
-  ];
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchDepartments = async () => {
+    setLoading(true);
+    try {
+      const res = await adminAPI.getDepartments();
+      setDepartments(res.data.data || []);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch departments');
+      toast.error('Failed to load departments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedIds(mockDepartments.map(d => d.id));
+      setSelectedIds(departments.map(d => d._id));
     } else {
       setSelectedIds([]);
     }
@@ -24,6 +41,14 @@ export default function AdminDepartments() {
 
   const handleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const executeDelete = async () => {
+    await adminAPI.deleteDepartment(deleteTarget.id);
+    setDeleteTarget(null);
+    await fetchDepartments();
   };
 
   return (
@@ -83,7 +108,7 @@ export default function AdminDepartments() {
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                   <th className="px-4 py-3 w-10 text-center">
-                    <input type="checkbox" onChange={handleSelectAll} checked={selectedIds.length === mockDepartments.length && mockDepartments.length > 0} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
+                    <input type="checkbox" onChange={handleSelectAll} checked={selectedIds.length === departments.length && departments.length > 0} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
                   </th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-[#64748B] uppercase">Department Name</th>
                   <th className="px-4 py-3 text-[12px] font-semibold text-[#64748B] uppercase">Head</th>
@@ -94,60 +119,91 @@ export default function AdminDepartments() {
                 </tr>
               </thead>
               <tbody>
-                {mockDepartments.map((dept) => (
-                  <tr key={dept.id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
-                    <td className="px-4 py-3 text-center">
-                      <input type="checkbox" checked={selectedIds.includes(dept.id)} onChange={() => handleSelect(dept.id)} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 cursor-pointer hover:underline text-[#0F172A]" onClick={() => navigate(`/admin/departments/${dept.id}`)}>
-                        <div className="w-8 h-8 rounded bg-[#E2E8F0] text-[#64748B] flex items-center justify-center">
-                          <span className="material-symbols-outlined text-[16px]">domain</span>
-                        </div>
-                        <span className="text-[14px] font-medium">{dept.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">
-                      {dept.head === 'Unassigned' ? (
-                        <span className="text-[#F59E0B] italic">{dept.head}</span>
-                      ) : (
-                        <span className="text-[#2563EB] hover:underline cursor-pointer">{dept.head}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B] font-mono">{dept.users}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
-                        dept.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'
-                      }`}>
-                        {dept.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#64748B]">{dept.created}</td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => navigate(`/admin/departments/${dept.id}`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="View Details">
-                          <span className="material-symbols-outlined text-[18px]">visibility</span>
-                        </button>
-                        <button className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="Edit">
-                          <span className="material-symbols-outlined text-[18px]">edit</span>
-                        </button>
-                        <button className="text-[#64748B] hover:text-[#0F172A] transition-colors" title="More actions">
-                          <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                        </button>
+                {loading ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-8 text-center text-[#64748B]">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+                        Loading departments...
                       </div>
                     </td>
                   </tr>
-                ))}
+                ) : error ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-8 text-center text-[#DC2626]">{error}</td>
+                  </tr>
+                ) : departments.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-4 py-8 text-center text-[#64748B]">No departments found.</td>
+                  </tr>
+                ) : (
+                  departments.map((dept) => (
+                    <tr key={dept._id} className="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-colors last:border-0 group">
+                      <td className="px-4 py-3 text-center">
+                        <input type="checkbox" checked={selectedIds.includes(dept._id)} onChange={() => handleSelect(dept._id)} className="w-4 h-4 rounded border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB]" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3 cursor-pointer hover:underline text-[#0F172A]" onClick={() => navigate(`/admin/departments/${dept._id}`)}>
+                          <div className="w-8 h-8 rounded bg-[#E2E8F0] text-[#64748B] flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[16px]">domain</span>
+                          </div>
+                          <span className="text-[14px] font-medium">{dept.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">
+                        {!dept.head ? (
+                          <span className="text-[#F59E0B] italic">Unassigned</span>
+                        ) : (
+                          <span className="text-[#2563EB] hover:underline cursor-pointer">{dept.head.name}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B] font-mono">{dept.memberCount || 0}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
+                          dept.status === 'Active' ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#E2E8F0] text-[#64748B]'
+                        }`}>
+                          {dept.status || 'Active'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-[#64748B]">{dept.createdAt ? new Date(dept.createdAt).toLocaleDateString() : 'N/A'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => navigate(`/admin/departments/${dept._id}`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="View Details">
+                            <span className="material-symbols-outlined text-[18px]">visibility</span>
+                          </button>
+                          <button onClick={() => navigate(`/admin/departments/${dept._id}/edit`)} className="text-[#64748B] hover:text-[#2563EB] transition-colors" title="Edit">
+                            <span className="material-symbols-outlined text-[18px]">edit</span>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: dept._id, name: dept.name }); }}
+                            className="text-[#64748B] hover:text-[#DC2626] transition-colors"
+                            title="Delete department"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
           
           <div className="px-4 py-3 border-t border-[#E2E8F0] flex items-center justify-between bg-white">
-            <p className="text-[13px] text-[#64748B]">Showing <span className="font-medium text-[#0F172A]">1</span> to <span className="font-medium text-[#0F172A]">5</span> of <span className="font-medium text-[#0F172A]">5</span> results</p>
+            <p className="text-[13px] text-[#64748B]">Showing <span className="font-medium text-[#0F172A]">{departments.length}</span> results</p>
           </div>
         </div>
 
       </div>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        entityName={deleteTarget?.name}
+        entityLabel="department"
+        onConfirm={executeDelete}
+      />
     </PageWrapper>
   );
 }

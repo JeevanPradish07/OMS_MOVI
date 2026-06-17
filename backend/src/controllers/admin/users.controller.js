@@ -3,6 +3,7 @@ import Role from '../../models/Role.js';
 import { sendSuccess, sendError, sendPaginated } from '../../utils/apiResponse.js';
 import { getPagination } from '../../utils/paginate.js';
 import { sendNotification } from '../../utils/sendNotification.js';
+import { sendWelcomeEmail } from '../../utils/sendEmail.js';
 
 /**
  * GET /api/admin/users
@@ -14,8 +15,8 @@ export const getUsers = async (req, res, next) => {
     const { page, limit, skip } = getPagination(req.query);
     const { search, department, role, status, employmentType, sortBy, sortOrder } = req.query;
 
-    // Build filter
-    const filter = {};
+    // Build filter — always exclude soft-deleted users
+    const filter = { deletedAt: { $exists: false } };
 
     if (search) {
       filter.$or = [
@@ -76,8 +77,8 @@ export const createUser = async (req, res, next) => {
       return sendError(res, 'Name, email, and role are required', 400);
     }
 
-    // Check email uniqueness
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    // Check email uniqueness — ignore soft-deleted users
+    const existing = await User.findOne({ email: email.toLowerCase(), deletedAt: { $exists: false } });
     if (existing) {
       return sendError(res, 'Email already registered', 400);
     }
@@ -126,9 +127,25 @@ export const createUser = async (req, res, next) => {
       sender: req.user._id,
     });
 
+    // Send welcome email with credentials
+    let emailWarning = null;
+    try {
+      await sendWelcomeEmail({
+        to: user.email,
+        name: user.name,
+        email: user.email,
+        tempPassword: userPassword,
+        employeeId,
+      });
+    } catch (emailErr) {
+      console.error('Welcome email failed:', emailErr.message);
+      emailWarning = 'User created but welcome email could not be sent.';
+    }
+
     sendSuccess(res, {
       ...populatedUser.toJSON(),
-      tempPassword: userPassword, // Shown to admin once only
+      tempPassword: userPassword,
+      ...(emailWarning && { warning: emailWarning }),
     }, 'User created successfully', 201);
   } catch (error) {
     next(error);
@@ -242,12 +259,13 @@ export const deleteUser = async (req, res, next) => {
       return sendError(res, 'You cannot delete your own account', 400);
     }
 
-    // Soft delete
+    // Soft delete — free the email so it can be reused
     user.status = 'Inactive';
     user.deletedAt = new Date();
+    user.email = `deleted_${Date.now()}_${user.email}`;
     await user.save({ validateBeforeSave: false });
 
-    sendSuccess(res, { _id: user._id, name: user.name }, 'User deactivated successfully');
+    sendSuccess(res, { _id: user._id, name: user.name }, 'User deleted successfully');
   } catch (error) {
     next(error);
   }

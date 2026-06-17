@@ -1,938 +1,805 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   SlidersHorizontal, Shield, Bell, Palette, Database, Globe, Server, AlertTriangle, CheckCircle,
   EyeOff, ShieldCheck, Mail, ImagePlus, Download, Plus, Key, RefreshCw
 } from 'lucide-react';
 import PageWrapper from '../../components/PageWrapper';
+import { adminAPI } from '../../utils/api';
 
-// --- SUB-COMPONENTS ---
+// ─── Shared components ────────────────────────────────────────────────────────
+
 const Toast = ({ show }) => (
   <AnimatePresence>
     {show && (
       <motion.div
-        initial={{ x: 100, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        exit={{ x: 100, opacity: 0 }}
-        transition={{ duration: 0.3 }}
-        className="fixed top-4 right-4 z-[100] bg-[#16A34A] text-white rounded-lg px-4 py-3 flex items-center gap-2 shadow-lg"
+        initial={{ x: 100, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 100, opacity: 0 }}
+        transition={{ duration: 0.25 }}
+        className="fixed top-4 right-4 z-[100] bg-[#16A34A] text-white rounded-lg px-4 py-2.5 flex items-center gap-2 shadow-lg"
       >
-        <CheckCircle size={18} />
-        <span className="text-sm font-medium">Settings saved successfully</span>
+        <CheckCircle size={16} />
+        <span className="text-[13px] font-medium">Settings saved successfully</span>
       </motion.div>
     )}
   </AnimatePresence>
 );
 
-const TabNav = ({ tabs, activeTab, setActiveTab, dirtyState }) => (
-  <div className="w-64 min-w-[256px] bg-[#F8FAFC] border-r border-[#E2E8F0] p-3 flex flex-col">
-    <div className="text-xs font-semibold text-[#94A3B8] tracking-widest px-3 py-2 mb-2">
+const TabNav = ({ tabs, activeTab, setActiveTab, isDirty }) => (
+  <div className="w-52 min-w-[208px] bg-[#F8FAFC] border-r border-[#E2E8F0] p-2.5 flex flex-col gap-1 shrink-0">
+    <div className="text-[10px] font-semibold text-[#94A3B8] tracking-widest px-2.5 py-1.5 mb-0.5">
       CONFIGURATION
     </div>
-    <div className="flex-1 space-y-1">
-      {tabs.map((tab) => {
-        const isActive = activeTab === tab.id;
-        const Icon = tab.icon;
-        // Mock dirty check for specific tabs. Here we just show it if any global state is dirty for simplicity, 
-        // but normally you'd check per-tab dirty state. For now, show on general if dirty to simulate.
-        const hasUnsavedChanges = dirtyState && tab.id === 'general'; 
-        
-        return (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm ${
-              isActive
-                ? 'bg-[#EFF6FF] text-[#2563EB] font-medium'
-                : 'text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]'
-            }`}
-          >
-            <Icon size={16} />
-            <span className="flex-1 text-left">{tab.label}</span>
-            {hasUnsavedChanges && (
-              <div className="w-1.5 h-1.5 rounded-full bg-[#D97706]"></div>
-            )}
-          </button>
-        );
-      })}
+    <div className="flex-1 space-y-0.5">
+      {tabs.map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          onClick={() => setActiveTab(id)}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-[13px] ${
+            activeTab === id
+              ? 'bg-[#EFF6FF] text-[#2563EB] font-medium'
+              : 'text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]'
+          }`}
+        >
+          <Icon size={15} />
+          <span className="flex-1 text-left">{label}</span>
+          {isDirty && activeTab === id && <div className="w-1.5 h-1.5 rounded-full bg-[#D97706] shrink-0" />}
+        </button>
+      ))}
     </div>
-    <div className="border-t border-[#E2E8F0] my-4 mx-3"></div>
-    <div className="bg-[#FEF3C7] border border-[#FDE68A] rounded-lg p-3 mx-2 mt-auto flex items-start gap-2">
-      <AlertTriangle size={14} className="text-[#D97706] shrink-0 mt-0.5" />
-      <p className="text-xs text-[#92400E] leading-relaxed">
-        Changes to Security and System settings take effect immediately and may affect all users.
-      </p>
+    <div className="border-t border-[#E2E8F0] mt-2 pt-2 mx-1">
+      <div className="bg-[#FEF3C7] border border-[#FDE68A] rounded-lg p-2.5 flex items-start gap-1.5">
+        <AlertTriangle size={12} className="text-[#D97706] shrink-0 mt-0.5" />
+        <p className="text-[11px] text-[#92400E] leading-snug">
+          Security and System changes take effect immediately.
+        </p>
+      </div>
     </div>
   </div>
 );
 
-const SettingsSection = ({ title, description, children, isDanger = false }) => (
-  <div className={`mb-8 ${isDanger ? 'border border-[#DC2626] rounded-xl p-6 bg-[#FEF2F2]/30' : ''}`}>
-    <h3 className={`text-base font-semibold mb-1 ${isDanger ? 'text-[#DC2626]' : 'text-[#0F172A]'}`}>{title}</h3>
-    {description && <p className="text-sm text-[#64748B] mb-5">{description}</p>}
-    <div className="space-y-6">
-      {children}
-    </div>
+// Section wrapper — no bottom margin, caller adds dividers
+const Section = ({ title, description, children, isDanger = false }) => (
+  <div className={isDanger ? 'border border-[#DC2626] rounded-xl p-4 bg-[#FEF2F2]/30' : ''}>
+    <h3 className={`text-[13px] font-semibold mb-0.5 ${isDanger ? 'text-[#DC2626]' : 'text-[#0F172A]'}`}>{title}</h3>
+    {description && <p className="text-[12px] text-[#64748B] mb-3">{description}</p>}
+    <div className="space-y-4">{children}</div>
   </div>
 );
 
-const FieldGroup = ({ label, helper, warning, children }) => (
+const Divider = () => <div className="border-t border-[#E2E8F0] my-5" />;
+
+const Field = ({ label, helper, warning, children }) => (
   <div>
-    <label className="block text-sm font-medium text-[#0F172A] mb-1.5">{label}</label>
+    <label className="block text-[12px] font-medium text-[#0F172A] mb-1">{label}</label>
     {children}
-    {helper && <p className="text-xs text-[#64748B] mt-1.5">{helper}</p>}
+    {helper && <p className="text-[11px] text-[#64748B] mt-1">{helper}</p>}
     {warning && (
-      <div className="mt-2 bg-[#FEF3C7] border border-[#FDE68A] rounded p-2 text-xs text-[#92400E]">
+      <div className="mt-1.5 bg-[#FEF3C7] border border-[#FDE68A] rounded p-1.5 text-[11px] text-[#92400E]">
         {warning}
       </div>
     )}
   </div>
 );
 
-const ToggleSwitch = ({ label, description, checked, onChange, isDanger = false }) => (
-  <div className="flex items-center justify-between">
-    <div>
-      <div className="text-sm font-medium text-[#0F172A]">{label}</div>
-      {description && <div className="text-xs text-[#64748B] mt-0.5">{description}</div>}
+const Toggle = ({ label, description, checked, onChange, isDanger = false }) => (
+  <div className="flex items-center justify-between gap-4">
+    <div className="min-w-0">
+      <div className="text-[13px] font-medium text-[#0F172A] leading-snug">{label}</div>
+      {description && <div className="text-[11px] text-[#64748B] mt-0.5">{description}</div>}
     </div>
-    <button 
+    <button
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ${checked ? (isDanger ? 'bg-[#DC2626]' : 'bg-[#2563EB]') : 'bg-[#CBD5E1]'}`}
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
+        checked ? (isDanger ? 'bg-[#DC2626]' : 'bg-[#2563EB]') : 'bg-[#CBD5E1]'
+      }`}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-2' : '-translate-x-2'}`} />
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm ${checked ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
     </button>
   </div>
 );
 
-// --- MAIN PAGE COMPONENT ---
+const inputCls = 'w-full border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB] bg-white';
+const selectCls = inputCls;
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function AdminSettings() {
-  const [activeTab, setActiveTab] = useState("general");
-  const [isDirty, setIsDirty] = useState(false);
-  const [lastSaved, setLastSaved] = useState("Today at 2:34 PM");
+  const [activeTab, setActiveTab] = useState('general');
+  const [isDirty, setIsDirty]     = useState(false);
+  const [lastSaved, setLastSaved] = useState('Not saved yet');
   const [showToast, setShowToast] = useState(false);
-  
-  const [settings, setSettings] = useState({
+  const [saving, setSaving]       = useState(false);
+
+  const [s, setS] = useState({
     // General
-    appName: "Office Workspace Management System",
-    appShortName: "OWMS",
-    appUrl: "https://owms.movicloudlabs.com",
-    orgName: "Movi Cloud Labs",
-    orgDomain: "movicloudlabs.com",
-    timezone: "(GMT+05:30) Chennai, Mumbai, New Delhi",
-    dateFormat: "DD/MM/YYYY",
-    timeFormat: "24-hour",
-    language: "English (US)",
-    currency: "INR",
+    appName: 'Office Workspace Management System',
+    appShortName: 'OWMS',
+    appUrl: 'https://owms.movicloudlabs.com',
+    orgName: 'Movi Cloud Labs',
+    orgDomain: 'movicloudlabs.com',
+    timezone: '(GMT+05:30) Chennai, Mumbai, New Delhi',
+    dateFormat: 'DD/MM/YYYY',
+    timeFormat: '24-hour',
+    language: 'English (US)',
+    currency: 'INR',
     itemsPerPage: 25,
-    defaultDashboard: "Overview",
-    sidebarDefault: "Expanded",
+    defaultDashboard: 'Overview',
+    sidebarDefault: 'Expanded',
     // Security
     minPasswordLength: 12,
-    requireUppercase: true,
-    requireLowercase: true,
-    requireNumbers: true,
-    requireSpecial: true,
-    passwordExpiry: false,
-    passwordExpiryDays: 90,
-    passwordHistory: true,
-    passwordHistoryCount: 5,
-    sessionTimeout: "1 hour",
+    requireUppercase: true, requireLowercase: true, requireNumbers: true, requireSpecial: true,
+    passwordExpiry: false, passwordExpiryDays: 90,
+    passwordHistory: true, passwordHistoryCount: 5,
+    sessionTimeout: '1 hour',
     maxConcurrentSessions: 3,
-    rememberMe: true,
-    rememberMeDays: 30,
-    twoFactorPolicy: "Optional",
+    rememberMe: true, rememberMeDays: 30,
+    twoFactorPolicy: 'Optional',
     twoFactorMethods: { totp: true, email: true, sms: false },
-    maxFailedLogins: 5,
-    lockoutDuration: "15 min",
-    ipAllowlist: false,
-    ipAllowlistRanges: "192.168.1.0/24\n10.0.0.0/8",
+    maxFailedLogins: 5, lockoutDuration: '15 min',
+    ipAllowlist: false, ipAllowlistRanges: '192.168.1.0/24\n10.0.0.0/8',
     // Notifications
-    smtpHost: "smtp.gmail.com",
-    smtpPort: 587,
-    smtpUser: "admin",
-    smtpPass: "password",
-    smtpEncryption: "TLS",
-    fromEmail: "noreply@movicloudlabs.com",
-    fromName: "OWMS Notifications",
-    notifyNewUser: true,
-    notifyDeactivated: true,
-    notifyFailedLogin: true,
-    notifyPermissionChange: true,
-    notifyReportGenerated: false,
-    notifySystemErrors: true,
-    notifyAuditExport: false,
-    notifyNewDept: false,
-    dailyDigest: false,
-    dailyDigestTime: "08:00 AM",
-    weeklySummary: false,
-    weeklySummaryDay: "Monday",
+    smtpHost: 'smtp.gmail.com', smtpPort: 587, smtpUser: '', smtpPass: '', smtpEncryption: 'TLS',
+    fromEmail: 'noreply@movicloudlabs.com', fromName: 'OWMS Notifications',
+    notifyNewUser: true, notifyDeactivated: true, notifyFailedLogin: true,
+    notifyPermissionChange: true, notifyReportGenerated: false, notifySystemErrors: true,
+    notifyAuditExport: false, notifyNewDept: false,
+    dailyDigest: false, dailyDigestTime: '08:00',
+    weeklySummary: false, weeklySummaryDay: 'Monday',
     // Branding
-    primaryColor: "#2563EB",
-    accentColor: "#0F172A",
-    loginTitle: "Welcome to OWMS",
-    loginSubtitle: "Office Workspace Management System",
-    showLogoOnLogin: true,
-    loginBgStyle: "Solid Color",
+    primaryColor: '#2563EB', accentColor: '#0F172A',
+    loginTitle: 'Welcome to OWMS', loginSubtitle: 'Office Workspace Management System',
+    showLogoOnLogin: true, loginBgStyle: 'Solid Color',
     // Data
-    activityLogsRetention: "1 year",
-    auditLogsRetention: "2 years",
-    reportFilesRetention: "90 days",
-    deletedRecords: "Keep for 30 days",
-    autoBackup: false,
-    backupFrequency: "Daily",
-    backupTime: "02:00 AM",
-    backupRetention: 7,
+    activityLogsRetention: '1 year', auditLogsRetention: '2 years',
+    reportFilesRetention: '90 days', deletedRecords: 'Keep for 30 days',
+    autoBackup: false, backupFrequency: 'Daily', backupTime: '02:00', backupRetention: 7,
     // System
-    maintenanceMode: false,
-    maintenanceMessage: "System is currently under maintenance. Please check back in a few minutes.",
-    apiEnabled: true,
-    apiRateLimit: 100,
+    maintenanceMode: false, maintenanceMessage: 'System is under maintenance. Please check back later.',
+    apiEnabled: true, apiRateLimit: 100,
   });
 
-  const updateSetting = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    setIsDirty(true);
+  const set = (key, val) => { setS(prev => ({ ...prev, [key]: val })); setIsDirty(true); };
+
+  const fetchSettings = async () => {
+    try {
+      const res = await adminAPI.getSettings();
+      const d = res.data?.data;
+      if (d) setS(prev => ({ ...prev, ...d.general, ...d.security, ...d.notifications, ...d.system }));
+    } catch { /* use defaults */ }
   };
 
-  const handleSave = () => {
-    setIsDirty(false);
-    const now = new Date();
-    setLastSaved(`Today at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+  useEffect(() => { fetchSettings(); }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await adminAPI.updateSettings({
+        general: { appName: s.appName, appShortName: s.appShortName, orgName: s.orgName, orgDomain: s.orgDomain, timezone: s.timezone, dateFormat: s.dateFormat, timeFormat: s.timeFormat, language: s.language, itemsPerPage: s.itemsPerPage },
+        security: { minPasswordLength: s.minPasswordLength, requireUppercase: s.requireUppercase, requireNumbers: s.requireNumbers, requireSpecial: s.requireSpecial, sessionTimeout: s.sessionTimeout, maxFailedLogins: s.maxFailedLogins, lockoutDuration: s.lockoutDuration, twoFactorPolicy: s.twoFactorPolicy, passwordExpiryDays: s.passwordExpiryDays },
+        notifications: { notifyNewUser: s.notifyNewUser, notifyFailedLogin: s.notifyFailedLogin, notifyPermissionChange: s.notifyPermissionChange, notifySystemErrors: s.notifySystemErrors },
+        system: { maintenanceMode: s.maintenanceMode, maintenanceMessage: s.maintenanceMessage, apiEnabled: s.apiEnabled, apiRateLimit: s.apiRateLimit, auditLogsRetention: parseInt(s.auditLogsRetention) || 730 },
+      });
+      setIsDirty(false);
+      const now = new Date();
+      setLastSaved(`Today at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch { /* keep dirty */ } finally { setSaving(false); }
   };
 
   const tabs = [
-    { id: 'general', label: 'General', icon: SlidersHorizontal },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'branding', label: 'Branding', icon: Palette },
-    { id: 'data', label: 'Data & Storage', icon: Database },
-    { id: 'integrations', label: 'Integrations', icon: Globe },
-    { id: 'system', label: 'System', icon: Server },
+    { id: 'general',       label: 'General',       icon: SlidersHorizontal },
+    { id: 'security',      label: 'Security',       icon: Shield },
+    { id: 'notifications', label: 'Notifications',  icon: Bell },
+    { id: 'branding',      label: 'Branding',       icon: Palette },
+    { id: 'data',          label: 'Data & Storage', icon: Database },
+    { id: 'integrations',  label: 'Integrations',   icon: Globe },
+    { id: 'system',        label: 'System',         icon: Server },
   ];
 
   return (
     <PageWrapper>
       <div className="flex flex-col h-full bg-[#F8FAFC]">
         <Toast show={showToast} />
-        
-        {/* HEADER */}
-        <div className="px-8 py-6 border-b border-[#E2E8F0] bg-white flex items-center justify-between shrink-0">
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E2E8F0] bg-white flex items-center justify-between shrink-0">
           <div>
-            <h1 className="text-2xl font-semibold text-[#0F172A]">Settings</h1>
-            <p className="text-sm text-[#64748B] mt-1">
-              Configure global application parameters, security policies, and system behavior.
-            </p>
+            <h1 className="text-xl font-semibold text-[#0F172A]">Settings</h1>
+            <p className="text-[12px] text-[#64748B] mt-0.5">Configure global application parameters, security policies, and system behavior.</p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-[#64748B]">
-            <CheckCircle size={16} />
+          <div className="flex items-center gap-1.5 text-[12px] text-[#64748B]">
+            <CheckCircle size={14} className="text-[#16A34A]" />
             Last saved: {lastSaved}
           </div>
         </div>
 
-        {/* MAIN LAYOUT */}
-        <div className="flex-1 overflow-hidden p-8">
+        {/* Body */}
+        <div className="flex-1 overflow-hidden p-5">
           <div className="bg-white rounded-xl border border-[#E2E8F0] h-full flex overflow-hidden shadow-sm">
-            
-            {/* LEFT TAB NAV */}
-            <TabNav tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} dirtyState={isDirty} />
 
-            {/* RIGHT CONTENT AREA */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-6 relative">
+            <TabNav tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} isDirty={isDirty} />
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 pb-24">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -8 }}
-                  transition={{ duration: 0.2 }}
-                  className="max-w-3xl pb-24"
+                  initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="max-w-2xl"
                 >
-                  
-                  {/* TAB 1: GENERAL */}
+
+                  {/* ── GENERAL ───────────────────────────────────────────── */}
                   {activeTab === 'general' && (
                     <>
-                      <SettingsSection title="Application Identity" description="Basic information identifying this application instance.">
-                        <FieldGroup label="Application Name">
-                          <input type="text" value={settings.appName} onChange={e => updateSetting('appName', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                        </FieldGroup>
-                        <FieldGroup label="Application Short Name / Acronym" helper="Used in browser tabs and compact UI areas">
-                          <input type="text" value={settings.appShortName} onChange={e => updateSetting('appShortName', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                        </FieldGroup>
-                        <FieldGroup label="Application URL">
-                          <input type="url" value={settings.appUrl} onChange={e => updateSetting('appUrl', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                        </FieldGroup>
-                        <div className="grid grid-cols-2 gap-6">
-                          <FieldGroup label="Organization Name">
-                            <input type="text" value={settings.orgName} onChange={e => updateSetting('orgName', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                          </FieldGroup>
-                          <FieldGroup label="Organization Domain" helper="Used for email validation during user onboarding">
-                            <input type="text" value={settings.orgDomain} onChange={e => updateSetting('orgDomain', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                          </FieldGroup>
+                      <Section title="Application Identity" description="Basic information identifying this application instance.">
+                        <Field label="Application Name">
+                          <input type="text" value={s.appName} onChange={e => set('appName', e.target.value)} className={inputCls} />
+                        </Field>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Short Name / Acronym" helper="Used in browser tabs and compact areas">
+                            <input type="text" value={s.appShortName} onChange={e => set('appShortName', e.target.value)} className={inputCls} />
+                          </Field>
+                          <Field label="Application URL">
+                            <input type="url" value={s.appUrl} onChange={e => set('appUrl', e.target.value)} className={inputCls} />
+                          </Field>
                         </div>
-                      </SettingsSection>
-                      
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-                      
-                      <SettingsSection title="Localization">
-                        <FieldGroup label="Timezone">
-                          <select value={settings.timezone} onChange={e => updateSetting('timezone', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            <option value="(GMT+05:30) Chennai, Mumbai, New Delhi">(GMT+05:30) Chennai, Mumbai, New Delhi</option>
-                            <option value="(GMT+00:00) London">(GMT+00:00) London</option>
-                            <option value="(GMT-05:00) Eastern Time (US & Canada)">(GMT-05:00) Eastern Time (US & Canada)</option>
-                            <option value="(GMT-08:00) Pacific Time (US & Canada)">(GMT-08:00) Pacific Time (US & Canada)</option>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Organization Name">
+                            <input type="text" value={s.orgName} onChange={e => set('orgName', e.target.value)} className={inputCls} />
+                          </Field>
+                          <Field label="Organization Domain" helper="Used for email validation during onboarding">
+                            <input type="text" value={s.orgDomain} onChange={e => set('orgDomain', e.target.value)} className={inputCls} />
+                          </Field>
+                        </div>
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="Localization">
+                        <Field label="Timezone">
+                          <select value={s.timezone} onChange={e => set('timezone', e.target.value)} className={selectCls}>
+                            <option>(GMT+05:30) Chennai, Mumbai, New Delhi</option>
+                            <option>(GMT+00:00) London</option>
+                            <option>(GMT-05:00) Eastern Time (US &amp; Canada)</option>
+                            <option>(GMT-08:00) Pacific Time (US &amp; Canada)</option>
                           </select>
-                        </FieldGroup>
-                        <div className="grid grid-cols-2 gap-6">
-                          <FieldGroup label="Date Format">
-                            <select value={settings.dateFormat} onChange={e => updateSetting('dateFormat', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                              <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                              <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                              <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                              <option value="DD MMM YYYY">DD MMM YYYY</option>
+                        </Field>
+                        <div className="grid grid-cols-3 gap-4">
+                          <Field label="Date Format">
+                            <select value={s.dateFormat} onChange={e => set('dateFormat', e.target.value)} className={selectCls}>
+                              {['MM/DD/YYYY','DD/MM/YYYY','YYYY-MM-DD','DD MMM YYYY'].map(f => <option key={f}>{f}</option>)}
                             </select>
-                          </FieldGroup>
-                          <FieldGroup label="Time Format">
-                            <div className="flex border border-[#E2E8F0] rounded-lg overflow-hidden w-full h-[38px]">
-                              {['12-hour (AM/PM)', '24-hour'].map(fmt => (
-                                <button key={fmt} onClick={() => updateSetting('timeFormat', fmt)} className={`flex-1 text-sm transition-colors ${settings.timeFormat === fmt ? 'bg-[#EFF6FF] text-[#2563EB] font-medium' : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]'}`}>
-                                  {fmt}
-                                </button>
-                              ))}
+                          </Field>
+                          <Field label="Time Format">
+                            <select value={s.timeFormat} onChange={e => set('timeFormat', e.target.value)} className={selectCls}>
+                              <option value="12-hour">12-hour (AM/PM)</option>
+                              <option value="24-hour">24-hour</option>
+                            </select>
+                          </Field>
+                          <Field label="Language">
+                            <select value={s.language} onChange={e => set('language', e.target.value)} className={selectCls}>
+                              {['English (US)','English (UK)','Spanish','French','German'].map(l => <option key={l}>{l}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Currency" helper="Used in financial reports">
+                            <select value={s.currency} onChange={e => set('currency', e.target.value)} className={selectCls}>
+                              {['USD','EUR','GBP','INR','JPY'].map(c => <option key={c}>{c}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Items Per Page">
+                            <select value={s.itemsPerPage} onChange={e => set('itemsPerPage', Number(e.target.value))} className={selectCls}>
+                              {[10,25,50,100].map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="Display Preferences">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Default Dashboard View">
+                            <select value={s.defaultDashboard} onChange={e => set('defaultDashboard', e.target.value)} className={selectCls}>
+                              {['Overview','Analytics','Activity Feed'].map(v => <option key={v}>{v}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Sidebar Default State">
+                            <select value={s.sidebarDefault} onChange={e => set('sidebarDefault', e.target.value)} className={selectCls}>
+                              <option>Expanded</option>
+                              <option>Collapsed</option>
+                            </select>
+                          </Field>
+                        </div>
+                      </Section>
+                    </>
+                  )}
+
+                  {/* ── SECURITY ──────────────────────────────────────────── */}
+                  {activeTab === 'security' && (
+                    <>
+                      <Section title="Password Policy" description="Define requirements for all user passwords.">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Minimum Length" helper="Recommended: 12+">
+                            <input type="number" min="6" max="32" value={s.minPasswordLength} onChange={e => set('minPasswordLength', e.target.value)} className={inputCls} />
+                          </Field>
+                          <Field label="Complexity">
+                            <div className="border border-[#E2E8F0] rounded-lg p-3 bg-[#F8FAFC] space-y-2.5">
+                              <Toggle label="Uppercase letters" checked={s.requireUppercase} onChange={v => set('requireUppercase', v)} />
+                              <Toggle label="Lowercase letters" checked={s.requireLowercase} onChange={v => set('requireLowercase', v)} />
+                              <Toggle label="Numbers" checked={s.requireNumbers} onChange={v => set('requireNumbers', v)} />
+                              <Toggle label="Special characters" checked={s.requireSpecial} onChange={v => set('requireSpecial', v)} />
                             </div>
-                          </FieldGroup>
+                          </Field>
                         </div>
-                        <div className="grid grid-cols-2 gap-6">
-                          <FieldGroup label="Language">
-                            <select value={settings.language} onChange={e => updateSetting('language', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                              <option value="English (US)">English (US)</option>
-                              <option value="English (UK)">English (UK)</option>
-                              <option value="Spanish">Spanish</option>
-                              <option value="French">French</option>
-                              <option value="German">German</option>
-                              <option value="Japanese">Japanese</option>
-                            </select>
-                          </FieldGroup>
-                          <FieldGroup label="Currency" helper="Used in financial reports and budget fields">
-                            <select value={settings.currency} onChange={e => updateSetting('currency', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                              <option value="USD">USD</option>
-                              <option value="EUR">EUR</option>
-                              <option value="GBP">GBP</option>
-                              <option value="INR">INR</option>
-                              <option value="JPY">JPY</option>
-                            </select>
-                          </FieldGroup>
+                        <div className="space-y-3">
+                          <Toggle label="Enable password expiry" checked={s.passwordExpiry} onChange={v => set('passwordExpiry', v)} />
+                          {s.passwordExpiry && (
+                            <div className="pl-4 border-l-2 border-[#E2E8F0] ml-1">
+                              <Field label="Expire after (days)">
+                                <input type="number" value={s.passwordExpiryDays} onChange={e => set('passwordExpiryDays', e.target.value)} className="w-24 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]" />
+                              </Field>
+                            </div>
+                          )}
+                          <Toggle label="Prevent reuse of previous passwords" checked={s.passwordHistory} onChange={v => set('passwordHistory', v)} />
+                          {s.passwordHistory && (
+                            <div className="pl-4 border-l-2 border-[#E2E8F0] ml-1">
+                              <Field label="Cannot reuse last (n) passwords">
+                                <input type="number" value={s.passwordHistoryCount} onChange={e => set('passwordHistoryCount', e.target.value)} className="w-24 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]" />
+                              </Field>
+                            </div>
+                          )}
                         </div>
-                      </SettingsSection>
+                      </Section>
 
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
+                      <Divider />
 
-                      <SettingsSection title="Display Preferences">
-                        <FieldGroup label="Items per page (default table pagination)">
-                          <select value={settings.itemsPerPage} onChange={e => updateSetting('itemsPerPage', Number(e.target.value))} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                          </select>
-                        </FieldGroup>
-                        <FieldGroup label="Default Dashboard View">
-                          <select value={settings.defaultDashboard} onChange={e => updateSetting('defaultDashboard', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            <option value="Overview">Overview</option>
-                            <option value="Analytics">Analytics</option>
-                            <option value="Activity Feed">Activity Feed</option>
-                          </select>
-                        </FieldGroup>
-                        <FieldGroup label="Sidebar default state">
-                          <div className="flex border border-[#E2E8F0] rounded-lg overflow-hidden w-full h-[38px]">
-                            {['Expanded', 'Collapsed'].map(st => (
-                              <button key={st} onClick={() => updateSetting('sidebarDefault', st)} className={`flex-1 text-sm transition-colors ${settings.sidebarDefault === st ? 'bg-[#EFF6FF] text-[#2563EB] font-medium' : 'bg-white text-[#64748B] hover:bg-[#F8FAFC]'}`}>
-                                {st}
+                      <Section title="Session Management">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Session Timeout" helper="Auto-logout after inactivity" warning={s.sessionTimeout === 'Never' ? 'Never is not recommended for security' : null}>
+                            <select value={s.sessionTimeout} onChange={e => set('sessionTimeout', e.target.value)} className={selectCls}>
+                              {['15 min','30 min','1 hour','2 hours','4 hours','8 hours','Never'].map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Max Concurrent Sessions" helper="Devices a user can be logged in from">
+                            <input type="number" value={s.maxConcurrentSessions} onChange={e => set('maxConcurrentSessions', e.target.value)} className={inputCls} />
+                          </Field>
+                        </div>
+                        <Toggle label="Allow Remember Me across browser sessions" description="Users can stay logged in" checked={s.rememberMe} onChange={v => set('rememberMe', v)} />
+                        {s.rememberMe && (
+                          <div className="pl-4 border-l-2 border-[#E2E8F0] ml-1">
+                            <Field label="Remember Me duration (days)">
+                              <input type="number" value={s.rememberMeDays} onChange={e => set('rememberMeDays', e.target.value)} className="w-24 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]" />
+                            </Field>
+                          </div>
+                        )}
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="Two-Factor Authentication">
+                        <Field label="2FA Policy">
+                          <div className="grid grid-cols-3 gap-2 mt-1">
+                            {[
+                              { val: 'Disabled', icon: EyeOff, label: 'Disabled', desc: 'No 2FA required' },
+                              { val: 'Optional', icon: Shield, label: 'Optional', desc: "User's choice" },
+                              { val: 'Required', icon: ShieldCheck, label: 'Required', desc: 'All users must set up' },
+                            ].map(({ val, icon: Icon, label, desc }) => (
+                              <div
+                                key={val}
+                                onClick={() => set('twoFactorPolicy', val)}
+                                className={`border rounded-lg p-3 cursor-pointer transition-colors text-center ${
+                                  s.twoFactorPolicy === val
+                                    ? val === 'Required' ? 'border-[#DC2626] bg-[#FEF2F2]' : 'border-[#2563EB] bg-[#EFF6FF]'
+                                    : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                                }`}
+                              >
+                                <Icon size={18} className={`mx-auto mb-1 ${s.twoFactorPolicy === val ? (val === 'Required' ? 'text-[#DC2626]' : 'text-[#2563EB]') : 'text-[#64748B]'}`} />
+                                <div className={`text-[12px] font-semibold ${s.twoFactorPolicy === val ? (val === 'Required' ? 'text-[#DC2626]' : 'text-[#2563EB]') : 'text-[#0F172A]'}`}>{label}</div>
+                                <div className="text-[11px] text-[#64748B] mt-0.5">{desc}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {s.twoFactorPolicy === 'Required' && (
+                            <p className="text-[11px] text-[#DC2626] mt-1.5 font-medium">All users will be forced to set up 2FA on next login.</p>
+                          )}
+                        </Field>
+                        <Field label="Allowed 2FA Methods">
+                          <div className="flex gap-5 mt-1">
+                            {[['totp','Authenticator App'],['email','Email OTP'],['sms','SMS OTP']].map(([k,lbl]) => (
+                              <label key={k} className="flex items-center gap-1.5 text-[13px] text-[#0F172A] cursor-pointer">
+                                <input type="checkbox" checked={s.twoFactorMethods[k]} onChange={e => set('twoFactorMethods', {...s.twoFactorMethods, [k]: e.target.checked})} className="w-3.5 h-3.5 text-[#2563EB] border-[#CBD5E1] rounded" />
+                                {lbl}
+                              </label>
+                            ))}
+                          </div>
+                        </Field>
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="Login &amp; Access">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Max Failed Login Attempts" helper="Account locks after this many failures">
+                            <input type="number" value={s.maxFailedLogins} onChange={e => set('maxFailedLogins', e.target.value)} className={inputCls} />
+                          </Field>
+                          <Field label="Account Lockout Duration">
+                            <select value={s.lockoutDuration} onChange={e => set('lockoutDuration', e.target.value)} className={selectCls}>
+                              {['5 min','15 min','30 min','1 hour','Until admin unlocks'].map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                        <Toggle label="Restrict access to specific IP ranges" description="IP Allowlist" checked={s.ipAllowlist} onChange={v => set('ipAllowlist', v)} />
+                        {s.ipAllowlist && (
+                          <div className="pl-4 border-l-2 border-[#E2E8F0] ml-1">
+                            <Field label="IP Ranges (one per line)">
+                              <textarea rows={3} value={s.ipAllowlistRanges} onChange={e => set('ipAllowlistRanges', e.target.value)} className={`${inputCls} font-mono`} />
+                            </Field>
+                          </div>
+                        )}
+                      </Section>
+                    </>
+                  )}
+
+                  {/* ── NOTIFICATIONS ─────────────────────────────────────── */}
+                  {activeTab === 'notifications' && (
+                    <>
+                      <Section title="Email / SMTP">
+                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-4 space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <Field label="SMTP Host">
+                              <input type="text" placeholder="smtp.gmail.com" value={s.smtpHost} onChange={e => set('smtpHost', e.target.value)} className={inputCls} />
+                            </Field>
+                            <Field label="SMTP Port">
+                              <input type="number" value={s.smtpPort} onChange={e => set('smtpPort', e.target.value)} className={inputCls} />
+                            </Field>
+                            <Field label="Username">
+                              <input type="text" value={s.smtpUser} onChange={e => set('smtpUser', e.target.value)} className={inputCls} />
+                            </Field>
+                            <Field label="Password">
+                              <input type="password" value={s.smtpPass} onChange={e => set('smtpPass', e.target.value)} className={inputCls} />
+                            </Field>
+                            <Field label="Encryption">
+                              <select value={s.smtpEncryption} onChange={e => set('smtpEncryption', e.target.value)} className={selectCls}>
+                                <option>None</option><option>TLS</option><option>SSL</option>
+                              </select>
+                            </Field>
+                          </div>
+                          <button className="flex items-center gap-1.5 text-[13px] font-medium text-[#2563EB] hover:text-blue-700 transition-colors">
+                            <Mail size={14} /> Send Test Email
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="From Email">
+                            <input type="email" value={s.fromEmail} onChange={e => set('fromEmail', e.target.value)} className={inputCls} />
+                          </Field>
+                          <Field label="From Name">
+                            <input type="text" value={s.fromName} onChange={e => set('fromName', e.target.value)} className={inputCls} />
+                          </Field>
+                        </div>
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="System Event Notifications" description="Which events trigger email alerts to admins.">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+                          <Toggle label="New User Created" checked={s.notifyNewUser} onChange={v => set('notifyNewUser', v)} />
+                          <Toggle label="User Deactivated" checked={s.notifyDeactivated} onChange={v => set('notifyDeactivated', v)} />
+                          <Toggle label="Failed Login Attempts" checked={s.notifyFailedLogin} onChange={v => set('notifyFailedLogin', v)} />
+                          <Toggle label="Permission Changes" checked={s.notifyPermissionChange} onChange={v => set('notifyPermissionChange', v)} />
+                          <Toggle label="Report Generated" checked={s.notifyReportGenerated} onChange={v => set('notifyReportGenerated', v)} />
+                          <Toggle label="System Errors" checked={s.notifySystemErrors} onChange={v => set('notifySystemErrors', v)} />
+                          <Toggle label="Audit Log Exports" checked={s.notifyAuditExport} onChange={v => set('notifyAuditExport', v)} />
+                          <Toggle label="New Department Created" checked={s.notifyNewDept} onChange={v => set('notifyNewDept', v)} />
+                        </div>
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="Digest Emails">
+                        <Toggle label="Daily Digest" description="Send daily summary to admins" checked={s.dailyDigest} onChange={v => set('dailyDigest', v)} />
+                        {s.dailyDigest && (
+                          <div className="pl-4 border-l-2 border-[#E2E8F0] ml-1">
+                            <Field label="Send at">
+                              <input type="time" value={s.dailyDigestTime} onChange={e => set('dailyDigestTime', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]" />
+                            </Field>
+                          </div>
+                        )}
+                        <Toggle label="Weekly Summary" description="Send weekly activity report" checked={s.weeklySummary} onChange={v => set('weeklySummary', v)} />
+                        {s.weeklySummary && (
+                          <div className="pl-4 border-l-2 border-[#E2E8F0] ml-1">
+                            <Field label="Send on">
+                              <select value={s.weeklySummaryDay} onChange={e => set('weeklySummaryDay', e.target.value)} className="w-36 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]">
+                                {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => <option key={d}>{d}</option>)}
+                              </select>
+                            </Field>
+                          </div>
+                        )}
+                      </Section>
+                    </>
+                  )}
+
+                  {/* ── BRANDING ──────────────────────────────────────────── */}
+                  {activeTab === 'branding' && (
+                    <>
+                      <Section title="Visual Identity">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Application Logo">
+                            <div className="border border-dashed border-[#E2E8F0] rounded-xl p-6 text-center flex flex-col items-center bg-[#F8FAFC]">
+                              <ImagePlus className="text-[#94A3B8] mb-2" size={24} />
+                              <span className="text-[12px] font-medium text-[#0F172A] mb-0.5">Upload Logo</span>
+                              <span className="text-[11px] text-[#64748B] mb-3">SVG/PNG · Max 2MB · 200×50px</span>
+                              <button className="text-[12px] font-medium text-[#2563EB] hover:text-blue-700">Browse Files</button>
+                            </div>
+                          </Field>
+                          <Field label="Favicon">
+                            <div className="border border-dashed border-[#E2E8F0] rounded-xl p-6 text-center flex flex-col items-center bg-[#F8FAFC] h-full justify-center">
+                              <ImagePlus className="text-[#94A3B8] mb-2" size={20} />
+                              <span className="text-[11px] text-[#64748B] mb-3">ICO/PNG · 32×32px</span>
+                              <button className="text-[12px] font-medium text-[#2563EB] hover:text-blue-700">Browse Files</button>
+                            </div>
+                          </Field>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Primary Color" helper="Buttons, active states, links">
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={s.primaryColor} onChange={e => set('primaryColor', e.target.value)} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                              <input type="text" value={s.primaryColor} onChange={e => set('primaryColor', e.target.value)} className="w-28 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]" />
+                              <span style={{ backgroundColor: s.primaryColor }} className="text-white text-[11px] px-2.5 py-1 rounded font-medium">Preview</span>
+                            </div>
+                          </Field>
+                          <Field label="Accent Color">
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={s.accentColor} onChange={e => set('accentColor', e.target.value)} className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                              <input type="text" value={s.accentColor} onChange={e => set('accentColor', e.target.value)} className="w-28 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]" />
+                            </div>
+                          </Field>
+                        </div>
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="Login Page">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="Title">
+                            <input type="text" value={s.loginTitle} onChange={e => set('loginTitle', e.target.value)} className={inputCls} />
+                          </Field>
+                          <Field label="Subtitle">
+                            <input type="text" value={s.loginSubtitle} onChange={e => set('loginSubtitle', e.target.value)} className={inputCls} />
+                          </Field>
+                        </div>
+                        <Toggle label="Show Organization Logo on Login" checked={s.showLogoOnLogin} onChange={v => set('showLogoOnLogin', v)} />
+                        <Field label="Background Style">
+                          <div className="flex gap-3 mt-1">
+                            {['Solid Color','Gradient','Image'].map(style => (
+                              <button key={style} onClick={() => set('loginBgStyle', style)}
+                                className={`flex-1 border rounded-lg py-2 text-[12px] font-medium transition-colors ${s.loginBgStyle === style ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]' : 'border-[#E2E8F0] text-[#64748B] hover:border-[#CBD5E1]'}`}>
+                                {style}
                               </button>
                             ))}
                           </div>
-                        </FieldGroup>
-                      </SettingsSection>
+                        </Field>
+                      </Section>
                     </>
                   )}
 
-                  {/* TAB 2: SECURITY */}
-                  {activeTab === 'security' && (
-                    <>
-                      <SettingsSection title="Password Policy" description="Define requirements for all user passwords in the system">
-                        <FieldGroup label="Minimum Password Length" helper="Recommended: 12 or more characters">
-                          <input type="number" min="6" max="32" value={settings.minPasswordLength} onChange={e => updateSetting('minPasswordLength', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                        </FieldGroup>
-                        <FieldGroup label="Password Complexity Requirements">
-                          <div className="space-y-3 mt-2 border border-[#E2E8F0] rounded-lg p-4 bg-[#F8FAFC]">
-                            <ToggleSwitch label="Require uppercase letters" checked={settings.requireUppercase} onChange={v => updateSetting('requireUppercase', v)} />
-                            <ToggleSwitch label="Require lowercase letters" checked={settings.requireLowercase} onChange={v => updateSetting('requireLowercase', v)} />
-                            <ToggleSwitch label="Require numbers" checked={settings.requireNumbers} onChange={v => updateSetting('requireNumbers', v)} />
-                            <ToggleSwitch label="Require special characters" checked={settings.requireSpecial} onChange={v => updateSetting('requireSpecial', v)} />
-                          </div>
-                        </FieldGroup>
-                        
-                        <div className="space-y-4">
-                          <ToggleSwitch label="Enable password expiry" checked={settings.passwordExpiry} onChange={v => updateSetting('passwordExpiry', v)} />
-                          {settings.passwordExpiry && (
-                            <div className="pl-4 border-l-2 border-[#E2E8F0] ml-2">
-                              <FieldGroup label="Expire after (days)">
-                                <input type="number" value={settings.passwordExpiryDays} onChange={e => updateSetting('passwordExpiryDays', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                              </FieldGroup>
-                            </div>
-                          )}
-                          <ToggleSwitch label="Prevent reuse of previous passwords" checked={settings.passwordHistory} onChange={v => updateSetting('passwordHistory', v)} />
-                          {settings.passwordHistory && (
-                            <div className="pl-4 border-l-2 border-[#E2E8F0] ml-2">
-                              <FieldGroup label="Cannot reuse last (passwords)">
-                                <input type="number" value={settings.passwordHistoryCount} onChange={e => updateSetting('passwordHistoryCount', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                              </FieldGroup>
-                            </div>
-                          )}
-                        </div>
-                      </SettingsSection>
-
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-
-                      <SettingsSection title="Session Management">
-                        <FieldGroup label="Session Timeout" helper="Users are automatically logged out after this period of inactivity" warning={settings.sessionTimeout === "Never" ? "Setting session timeout to Never is not recommended for security" : null}>
-                          <select value={settings.sessionTimeout} onChange={e => updateSetting('sessionTimeout', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            {['15 min', '30 min', '1 hour', '2 hours', '4 hours', '8 hours', 'Never'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                        </FieldGroup>
-                        <FieldGroup label="Maximum Concurrent Sessions" helper="Maximum number of devices a user can be logged in from simultaneously">
-                          <input type="number" value={settings.maxConcurrentSessions} onChange={e => updateSetting('maxConcurrentSessions', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                        </FieldGroup>
-                        <div className="space-y-4">
-                          <ToggleSwitch label="Allow users to stay logged in across browser sessions" description="Remember Me" checked={settings.rememberMe} onChange={v => updateSetting('rememberMe', v)} />
-                          {settings.rememberMe && (
-                            <div className="pl-4 border-l-2 border-[#E2E8F0] ml-2">
-                              <FieldGroup label="Remember me duration (days)">
-                                <input type="number" value={settings.rememberMeDays} onChange={e => updateSetting('rememberMeDays', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                              </FieldGroup>
-                            </div>
-                          )}
-                        </div>
-                      </SettingsSection>
-
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-
-                      <SettingsSection title="Two-Factor Authentication">
-                        <FieldGroup label="2FA Policy">
-                          <div className="space-y-3 mt-2">
-                            <div onClick={() => updateSetting('twoFactorPolicy', 'Disabled')} className={`border rounded-lg p-4 cursor-pointer flex items-center gap-3 transition-colors ${settings.twoFactorPolicy === 'Disabled' ? 'border-[#2563EB] bg-[#EFF6FF]' : 'border-[#E2E8F0] bg-white'}`}>
-                              <EyeOff className={settings.twoFactorPolicy === 'Disabled' ? 'text-[#2563EB]' : 'text-[#64748B]'} size={20} />
-                              <div>
-                                <h4 className={`text-sm font-medium ${settings.twoFactorPolicy === 'Disabled' ? 'text-[#2563EB]' : 'text-[#0F172A]'}`}>Disabled</h4>
-                                <p className="text-xs text-[#64748B] mt-0.5">No 2FA required</p>
-                              </div>
-                            </div>
-                            <div onClick={() => updateSetting('twoFactorPolicy', 'Optional')} className={`border rounded-lg p-4 cursor-pointer flex items-center gap-3 transition-colors ${settings.twoFactorPolicy === 'Optional' ? 'border-[#2563EB] bg-[#EFF6FF]' : 'border-[#E2E8F0] bg-white'}`}>
-                              <Shield className={settings.twoFactorPolicy === 'Optional' ? 'text-[#2563EB]' : 'text-[#64748B]'} size={20} />
-                              <div>
-                                <h4 className={`text-sm font-medium ${settings.twoFactorPolicy === 'Optional' ? 'text-[#2563EB]' : 'text-[#0F172A]'}`}>Optional</h4>
-                                <p className="text-xs text-[#64748B] mt-0.5">Users can choose to enable 2FA</p>
-                              </div>
-                            </div>
-                            <div onClick={() => updateSetting('twoFactorPolicy', 'Required')} className={`border rounded-lg p-4 cursor-pointer flex items-center gap-3 transition-colors ${settings.twoFactorPolicy === 'Required' ? 'border-[#DC2626] bg-[#FEF2F2]' : 'border-[#E2E8F0] bg-white'}`}>
-                              <ShieldCheck className={settings.twoFactorPolicy === 'Required' ? 'text-[#DC2626]' : 'text-[#64748B]'} size={20} />
-                              <div>
-                                <h4 className={`text-sm font-medium ${settings.twoFactorPolicy === 'Required' ? 'text-[#DC2626]' : 'text-[#0F172A]'}`}>Required</h4>
-                                <p className="text-xs text-[#64748B] mt-0.5">All users must set up 2FA to access the system</p>
-                              </div>
-                            </div>
-                            {settings.twoFactorPolicy === 'Required' && (
-                              <p className="text-xs text-[#DC2626] mt-2 font-medium">Warning: Enabling required 2FA will force all users to set up 2FA on their next login.</p>
-                            )}
-                          </div>
-                        </FieldGroup>
-                        <FieldGroup label="Allowed 2FA Methods">
-                          <div className="space-y-2 mt-2">
-                            <label className="flex items-center gap-2 text-sm text-[#0F172A] cursor-pointer">
-                              <input type="checkbox" checked={settings.twoFactorMethods.totp} onChange={e => updateSetting('twoFactorMethods', {...settings.twoFactorMethods, totp: e.target.checked})} className="w-4 h-4 text-[#2563EB] border-[#CBD5E1] rounded focus:ring-[#2563EB]" />
-                              Authenticator App (TOTP)
-                            </label>
-                            <label className="flex items-center gap-2 text-sm text-[#0F172A] cursor-pointer">
-                              <input type="checkbox" checked={settings.twoFactorMethods.email} onChange={e => updateSetting('twoFactorMethods', {...settings.twoFactorMethods, email: e.target.checked})} className="w-4 h-4 text-[#2563EB] border-[#CBD5E1] rounded focus:ring-[#2563EB]" />
-                              Email OTP
-                            </label>
-                            <label className="flex items-center gap-2 text-sm text-[#0F172A] cursor-pointer">
-                              <input type="checkbox" checked={settings.twoFactorMethods.sms} onChange={e => updateSetting('twoFactorMethods', {...settings.twoFactorMethods, sms: e.target.checked})} className="w-4 h-4 text-[#2563EB] border-[#CBD5E1] rounded focus:ring-[#2563EB]" />
-                              SMS OTP
-                            </label>
-                          </div>
-                        </FieldGroup>
-                      </SettingsSection>
-
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-
-                      <SettingsSection title="Login & Access">
-                        <div className="grid grid-cols-2 gap-6">
-                          <FieldGroup label="Maximum Failed Login Attempts" helper="Account will be locked after this many consecutive failed attempts">
-                            <input type="number" value={settings.maxFailedLogins} onChange={e => updateSetting('maxFailedLogins', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                          </FieldGroup>
-                          <FieldGroup label="Account Lockout Duration">
-                            <select value={settings.lockoutDuration} onChange={e => updateSetting('lockoutDuration', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                              {['5 min', '15 min', '30 min', '1 hour', 'Until admin unlocks'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                          </FieldGroup>
-                        </div>
-                        <div className="mt-4 space-y-4">
-                          <ToggleSwitch label="Restrict access to specific IP ranges" description="IP Allowlist" checked={settings.ipAllowlist} onChange={v => updateSetting('ipAllowlist', v)} />
-                          {settings.ipAllowlist && (
-                            <div className="pl-4 border-l-2 border-[#E2E8F0] ml-2">
-                              <FieldGroup label="IP Ranges (one per line)">
-                                <textarea rows={3} value={settings.ipAllowlistRanges} onChange={e => updateSetting('ipAllowlistRanges', e.target.value)} placeholder="192.168.1.0/24&#10;10.0.0.0/8" className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB] font-mono"></textarea>
-                              </FieldGroup>
-                            </div>
-                          )}
-                        </div>
-                      </SettingsSection>
-                    </>
-                  )}
-
-                  {/* TAB 3: NOTIFICATIONS */}
-                  {activeTab === 'notifications' && (
-                    <>
-                      <SettingsSection title="Email Notifications">
-                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-5 mb-6">
-                          <h4 className="text-sm font-medium text-[#0F172A] mb-4">SMTP Configuration</h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                            <FieldGroup label="SMTP Host">
-                              <input type="text" placeholder="smtp.gmail.com" value={settings.smtpHost} onChange={e => updateSetting('smtpHost', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                            </FieldGroup>
-                            <FieldGroup label="SMTP Port">
-                              <input type="number" value={settings.smtpPort} onChange={e => updateSetting('smtpPort', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                            </FieldGroup>
-                            <FieldGroup label="SMTP Username">
-                              <input type="text" value={settings.smtpUser} onChange={e => updateSetting('smtpUser', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                            </FieldGroup>
-                            <FieldGroup label="SMTP Password">
-                              <input type="password" value={settings.smtpPass} onChange={e => updateSetting('smtpPass', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                            </FieldGroup>
-                            <FieldGroup label="Encryption">
-                              <select value={settings.smtpEncryption} onChange={e => updateSetting('smtpEncryption', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                                <option value="None">None</option>
-                                <option value="TLS">TLS</option>
-                                <option value="SSL">SSL</option>
-                              </select>
-                            </FieldGroup>
-                          </div>
-                          <button className="flex items-center gap-2 text-sm font-medium text-[#2563EB] hover:text-blue-700 transition-colors">
-                            <Mail size={16} /> Send Test Email
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <FieldGroup label="From Email">
-                            <input type="email" value={settings.fromEmail} onChange={e => updateSetting('fromEmail', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                          </FieldGroup>
-                          <FieldGroup label="From Name">
-                            <input type="text" value={settings.fromName} onChange={e => updateSetting('fromName', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                          </FieldGroup>
-                        </div>
-                      </SettingsSection>
-
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-
-                      <SettingsSection title="System Event Notifications" description="Choose which events trigger email notifications to admins">
-                        <div className="space-y-4">
-                          <ToggleSwitch label="New User Created" description="When a new user account is added" checked={settings.notifyNewUser} onChange={v => updateSetting('notifyNewUser', v)} />
-                          <ToggleSwitch label="User Deactivated" description="When a user account is disabled" checked={settings.notifyDeactivated} onChange={v => updateSetting('notifyDeactivated', v)} />
-                          <ToggleSwitch label="Failed Login Attempts" description="When an account has multiple failed logins" checked={settings.notifyFailedLogin} onChange={v => updateSetting('notifyFailedLogin', v)} />
-                          <ToggleSwitch label="Permission Changes" description="When role permissions are modified" checked={settings.notifyPermissionChange} onChange={v => updateSetting('notifyPermissionChange', v)} />
-                          <ToggleSwitch label="Report Generated" description="When a scheduled report completes" checked={settings.notifyReportGenerated} onChange={v => updateSetting('notifyReportGenerated', v)} />
-                          <ToggleSwitch label="System Errors" description="When critical system errors occur" checked={settings.notifySystemErrors} onChange={v => updateSetting('notifySystemErrors', v)} />
-                          <ToggleSwitch label="Audit Log Exports" description="When audit logs are exported" checked={settings.notifyAuditExport} onChange={v => updateSetting('notifyAuditExport', v)} />
-                          <ToggleSwitch label="New Department Created" description="When a department is added" checked={settings.notifyNewDept} onChange={v => updateSetting('notifyNewDept', v)} />
-                        </div>
-                      </SettingsSection>
-
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-
-                      <SettingsSection title="Notification Digest">
-                        <div className="space-y-6">
-                          <div>
-                            <ToggleSwitch label="Daily Digest" description="Send daily summary email to admins" checked={settings.dailyDigest} onChange={v => updateSetting('dailyDigest', v)} />
-                            {settings.dailyDigest && (
-                              <div className="mt-3 pl-4 border-l-2 border-[#E2E8F0] ml-2">
-                                <FieldGroup label="Send at">
-                                  <input type="time" value={settings.dailyDigestTime} onChange={e => updateSetting('dailyDigestTime', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                                </FieldGroup>
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <ToggleSwitch label="Weekly Summary" description="Send weekly activity report" checked={settings.weeklySummary} onChange={v => updateSetting('weeklySummary', v)} />
-                            {settings.weeklySummary && (
-                              <div className="mt-3 pl-4 border-l-2 border-[#E2E8F0] ml-2">
-                                <FieldGroup label="Send on">
-                                  <select value={settings.weeklySummaryDay} onChange={e => updateSetting('weeklySummaryDay', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => <option key={d} value={d}>{d}</option>)}
-                                  </select>
-                                </FieldGroup>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </SettingsSection>
-                    </>
-                  )}
-
-                  {/* TAB 4: BRANDING */}
-                  {activeTab === 'branding' && (
-                    <>
-                      <SettingsSection title="Visual Identity">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                          <FieldGroup label="Application Logo">
-                            <div className="border border-dashed border-[#E2E8F0] rounded-xl p-8 text-center flex flex-col items-center justify-center bg-[#F8FAFC]">
-                              <ImagePlus className="text-[#94A3B8] mb-3" size={32} />
-                              <span className="text-sm font-medium text-[#0F172A] mb-1">Upload Logo</span>
-                              <span className="text-xs text-[#64748B] mb-4">SVG, PNG or JPG · Max 2MB · Recommended 200×50px</span>
-                              <button className="text-sm font-medium text-[#2563EB] hover:text-blue-700 transition-colors">Browse Files</button>
-                            </div>
-                          </FieldGroup>
-                          <FieldGroup label="Favicon">
-                            <div className="border border-dashed border-[#E2E8F0] rounded-xl p-8 text-center flex flex-col items-center justify-center bg-[#F8FAFC] h-full">
-                              <ImagePlus className="text-[#94A3B8] mb-3" size={24} />
-                              <span className="text-xs text-[#64748B] mb-4">ICO, PNG · 32×32px or 64×64px</span>
-                              <button className="text-sm font-medium text-[#2563EB] hover:text-blue-700 transition-colors">Browse Files</button>
-                            </div>
-                          </FieldGroup>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <FieldGroup label="Application Color (Primary)" helper="Used for primary buttons, active states, and links">
-                            <div className="flex items-center gap-3">
-                              <input type="color" value={settings.primaryColor} onChange={e => updateSetting('primaryColor', e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0" />
-                              <input type="text" value={settings.primaryColor} onChange={e => updateSetting('primaryColor', e.target.value)} className="w-28 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                              <button style={{ backgroundColor: settings.primaryColor }} className="text-white text-xs px-3 py-2 rounded font-medium ml-2">Preview</button>
-                            </div>
-                          </FieldGroup>
-                          <FieldGroup label="Accent Color">
-                            <div className="flex items-center gap-3">
-                              <input type="color" value={settings.accentColor} onChange={e => updateSetting('accentColor', e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0 p-0" />
-                              <input type="text" value={settings.accentColor} onChange={e => updateSetting('accentColor', e.target.value)} className="w-28 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                            </div>
-                          </FieldGroup>
-                        </div>
-                      </SettingsSection>
-
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-
-                      <SettingsSection title="Login Page">
-                        <FieldGroup label="Login Page Title">
-                          <input type="text" value={settings.loginTitle} onChange={e => updateSetting('loginTitle', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                        </FieldGroup>
-                        <FieldGroup label="Login Page Subtitle">
-                          <input type="text" value={settings.loginSubtitle} onChange={e => updateSetting('loginSubtitle', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                        </FieldGroup>
-                        <div className="mt-6 mb-6">
-                          <ToggleSwitch label="Show Organization Logo on Login" checked={settings.showLogoOnLogin} onChange={v => updateSetting('showLogoOnLogin', v)} />
-                        </div>
-                        <FieldGroup label="Login Background Style">
-                          <div className="grid grid-cols-3 gap-4">
-                            {['Solid Color', 'Gradient', 'Image'].map(style => (
-                              <div key={style} onClick={() => updateSetting('loginBgStyle', style)} className={`border rounded-lg p-3 text-center cursor-pointer transition-colors text-sm font-medium ${settings.loginBgStyle === style ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]' : 'border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#CBD5E1]'}`}>
-                                {style}
-                              </div>
-                            ))}
-                          </div>
-                        </FieldGroup>
-                      </SettingsSection>
-                    </>
-                  )}
-
-                  {/* TAB 5: DATA & STORAGE */}
+                  {/* ── DATA & STORAGE ────────────────────────────────────── */}
                   {activeTab === 'data' && (
                     <>
-                      <SettingsSection title="Data Retention">
-                        <FieldGroup label="User Activity Logs" helper="How long to keep user activity records">
-                          <select value={settings.activityLogsRetention} onChange={e => updateSetting('activityLogsRetention', e.target.value)} className="w-full sm:w-1/2 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            {['30 days', '90 days', '6 months', '1 year', '2 years', 'Forever'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                        </FieldGroup>
-                        <FieldGroup label="Audit Logs Retention" warning="Reducing audit log retention may affect compliance reporting">
-                          <select value={settings.auditLogsRetention} onChange={e => updateSetting('auditLogsRetention', e.target.value)} className="w-full sm:w-1/2 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            {['30 days', '90 days', '6 months', '1 year', '2 years', 'Forever'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                        </FieldGroup>
-                        <FieldGroup label="Report Files Retention" helper="How long to keep generated report files">
-                          <select value={settings.reportFilesRetention} onChange={e => updateSetting('reportFilesRetention', e.target.value)} className="w-full sm:w-1/2 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            {['7 days', '30 days', '90 days', '1 year', 'Forever'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                        </FieldGroup>
-                        <FieldGroup label="Deleted Records" helper="What happens to records when deleted by admins">
-                          <select value={settings.deletedRecords} onChange={e => updateSetting('deletedRecords', e.target.value)} className="w-full sm:w-1/2 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                            {['Permanently delete', 'Keep for 30 days', 'Keep for 90 days', 'Keep forever'].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                        </FieldGroup>
-                      </SettingsSection>
-
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
-
-                      <SettingsSection title="Export & Backup">
-                        <div className="space-y-6">
-                          <div>
-                            <ToggleSwitch label="Enable automatic database backups" description="Auto Backup" checked={settings.autoBackup} onChange={v => updateSetting('autoBackup', v)} />
-                            {settings.autoBackup && (
-                              <div className="mt-4 pl-4 border-l-2 border-[#E2E8F0] ml-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <FieldGroup label="Frequency">
-                                  <select value={settings.backupFrequency} onChange={e => updateSetting('backupFrequency', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]">
-                                    <option value="Daily">Daily</option>
-                                    <option value="Weekly">Weekly</option>
-                                    <option value="Monthly">Monthly</option>
-                                  </select>
-                                </FieldGroup>
-                                <FieldGroup label="Backup Time">
-                                  <input type="time" value={settings.backupTime} onChange={e => updateSetting('backupTime', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                                </FieldGroup>
-                                <FieldGroup label="Retention (Backups)">
-                                  <input type="number" value={settings.backupRetention} onChange={e => updateSetting('backupRetention', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                                </FieldGroup>
-                              </div>
-                            )}
-                          </div>
-                          
-                          <FieldGroup label="Data Export Format">
-                            <div className="flex items-center gap-6 mt-2">
-                              <label className="flex items-center gap-2 text-sm text-[#0F172A] cursor-pointer"><input type="checkbox" defaultChecked className="w-4 h-4 text-[#2563EB] border-[#CBD5E1] rounded" /> JSON</label>
-                              <label className="flex items-center gap-2 text-sm text-[#0F172A] cursor-pointer"><input type="checkbox" defaultChecked className="w-4 h-4 text-[#2563EB] border-[#CBD5E1] rounded" /> CSV</label>
-                              <label className="flex items-center gap-2 text-sm text-[#0F172A] cursor-pointer"><input type="checkbox" className="w-4 h-4 text-[#2563EB] border-[#CBD5E1] rounded" /> SQL Dump</label>
-                            </div>
-                          </FieldGroup>
-
-                          <div className="pt-2">
-                            <button className="flex items-center gap-2 px-4 py-2 border border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg text-sm font-medium transition-colors">
-                              <Download size={16} /> Export All Data
-                            </button>
-                            <p className="text-xs text-[#64748B] mt-2">Exports all system data. This may take several minutes for large datasets.</p>
-                          </div>
+                      <Section title="Data Retention">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Field label="User Activity Logs">
+                            <select value={s.activityLogsRetention} onChange={e => set('activityLogsRetention', e.target.value)} className={selectCls}>
+                              {['30 days','90 days','6 months','1 year','2 years','Forever'].map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Audit Logs" warning="Reducing may affect compliance reporting">
+                            <select value={s.auditLogsRetention} onChange={e => set('auditLogsRetention', e.target.value)} className={selectCls}>
+                              {['30 days','90 days','6 months','1 year','2 years','Forever'].map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Report Files">
+                            <select value={s.reportFilesRetention} onChange={e => set('reportFilesRetention', e.target.value)} className={selectCls}>
+                              {['7 days','30 days','90 days','1 year','Forever'].map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Deleted Records">
+                            <select value={s.deletedRecords} onChange={e => set('deletedRecords', e.target.value)} className={selectCls}>
+                              {['Permanently delete','Keep for 30 days','Keep for 90 days','Keep forever'].map(o => <option key={o}>{o}</option>)}
+                            </select>
+                          </Field>
                         </div>
-                      </SettingsSection>
+                      </Section>
+
+                      <Divider />
+
+                      <Section title="Backup &amp; Export">
+                        <Toggle label="Enable automatic database backups" checked={s.autoBackup} onChange={v => set('autoBackup', v)} />
+                        {s.autoBackup && (
+                          <div className="pl-4 border-l-2 border-[#E2E8F0] ml-1 grid grid-cols-3 gap-4">
+                            <Field label="Frequency">
+                              <select value={s.backupFrequency} onChange={e => set('backupFrequency', e.target.value)} className={selectCls}>
+                                <option>Daily</option><option>Weekly</option><option>Monthly</option>
+                              </select>
+                            </Field>
+                            <Field label="Time">
+                              <input type="time" value={s.backupTime} onChange={e => set('backupTime', e.target.value)} className={inputCls} />
+                            </Field>
+                            <Field label="Keep (backups)">
+                              <input type="number" value={s.backupRetention} onChange={e => set('backupRetention', e.target.value)} className={inputCls} />
+                            </Field>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 pt-1">
+                          <button className="flex items-center gap-1.5 px-4 py-2 border border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg text-[13px] font-medium transition-colors">
+                            <Download size={14} /> Export All Data
+                          </button>
+                          <span className="text-[11px] text-[#64748B]">Exports all system data. May take several minutes.</span>
+                        </div>
+                      </Section>
                     </>
                   )}
 
-                  {/* TAB 6: INTEGRATIONS */}
+                  {/* ── INTEGRATIONS ──────────────────────────────────────── */}
                   {activeTab === 'integrations' && (
                     <>
-                      <SettingsSection title="Connected Services" description="Manage third-party integrations and API connections">
-                        <div className="space-y-4">
+                      <Section title="Connected Services" description="Manage third-party integrations and API connections.">
+                        <div className="space-y-2">
                           {[
-                            { name: 'Slack', desc: 'Send notifications to Slack channels', connected: false, color: 'bg-purple-100' },
-                            { name: 'Microsoft Teams', desc: 'Integrate with Teams for alerts', connected: false, color: 'bg-indigo-100' },
-                            { name: 'Google Workspace', desc: 'Sync users with Google Directory', connected: false, color: 'bg-blue-100' },
-                            { name: 'JIRA', desc: 'Link projects and tasks with JIRA', connected: false, color: 'bg-sky-100' },
-                            { name: 'GitHub', desc: 'Connect repositories to projects', connected: false, color: 'bg-gray-200' },
-                            { name: 'Zapier', desc: 'Automate workflows with 5000+ apps', connected: false, color: 'bg-orange-100' }
-                          ].map(service => (
-                            <div key={service.name} className="border border-[#E2E8F0] rounded-lg p-4 flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded flex items-center justify-center font-bold text-lg text-[#0F172A] opacity-70 ${service.color}`}>
-                                  {service.name.charAt(0)}
+                            { name: 'Slack', desc: 'Send notifications to Slack channels', color: 'bg-purple-100' },
+                            { name: 'Microsoft Teams', desc: 'Integrate with Teams for alerts', color: 'bg-indigo-100' },
+                            { name: 'Google Workspace', desc: 'Sync users with Google Directory', color: 'bg-blue-100' },
+                            { name: 'JIRA', desc: 'Link projects and tasks with JIRA', color: 'bg-sky-100' },
+                            { name: 'GitHub', desc: 'Connect repositories to projects', color: 'bg-gray-200' },
+                            { name: 'Zapier', desc: 'Automate workflows with 5000+ apps', color: 'bg-orange-100' },
+                          ].map(svc => (
+                            <div key={svc.name} className="border border-[#E2E8F0] rounded-lg px-4 py-3 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-[13px] text-[#0F172A]/70 ${svc.color}`}>
+                                  {svc.name.charAt(0)}
                                 </div>
                                 <div>
-                                  <h4 className="text-sm font-medium text-[#0F172A]">{service.name}</h4>
-                                  <p className="text-xs text-[#64748B]">{service.desc}</p>
+                                  <div className="text-[13px] font-medium text-[#0F172A]">{svc.name}</div>
+                                  <div className="text-[11px] text-[#64748B]">{svc.desc}</div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-4">
-                                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${service.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                  {service.connected ? 'Connected' : 'Not Connected'}
-                                </span>
-                                <button className="text-sm font-medium text-[#2563EB] hover:text-blue-700">Configure</button>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Not Connected</span>
+                                <button className="text-[12px] font-medium text-[#2563EB] hover:text-blue-700">Configure</button>
                               </div>
                             </div>
                           ))}
                         </div>
-                      </SettingsSection>
+                      </Section>
 
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
+                      <Divider />
 
-                      <SettingsSection title="API Access">
-                        <div className="space-y-6">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className={`w-2 h-2 rounded-full ${settings.apiEnabled ? 'bg-[#16A34A]' : 'bg-[#DC2626]'}`}></div>
-                                <span className="text-sm font-medium text-[#0F172A]">{settings.apiEnabled ? 'API Active' : 'API Disabled'}</span>
-                              </div>
-                              <p className="text-xs text-[#64748B]">Allow external applications to connect via REST API</p>
-                            </div>
-                            <ToggleSwitch checked={settings.apiEnabled} onChange={v => updateSetting('apiEnabled', v)} />
+                      <Section title="API Access">
+                        <Toggle label={s.apiEnabled ? 'API Active' : 'API Disabled'} description="Allow external applications via REST API" checked={s.apiEnabled} onChange={v => set('apiEnabled', v)} />
+                        <Field label="Rate Limit">
+                          <div className="flex items-center gap-2">
+                            <input type="number" value={s.apiRateLimit} onChange={e => set('apiRateLimit', e.target.value)} className="w-28 border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:border-[#2563EB]" />
+                            <span className="text-[12px] text-[#64748B]">requests / minute</span>
                           </div>
-                          
-                          <FieldGroup label="API Rate Limiting">
-                            <div className="flex items-center gap-2">
-                              <input type="number" value={settings.apiRateLimit} onChange={e => updateSetting('apiRateLimit', e.target.value)} className="w-32 border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2563EB]" />
-                              <span className="text-sm text-[#64748B]">Requests per minute</span>
-                            </div>
-                          </FieldGroup>
-
-                          <div className="flex items-center gap-4 pt-2">
-                            <button className="flex items-center gap-2 px-4 py-2 border border-[#E2E8F0] text-[#0F172A] hover:bg-[#F8FAFC] rounded-lg text-sm font-medium transition-colors">
-                              <Key size={16} className="text-[#64748B]" /> View API Keys
-                            </button>
-                            <button className="flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-white hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors">
-                              <Plus size={16} /> Generate New API Key
-                            </button>
-                          </div>
+                        </Field>
+                        <div className="flex items-center gap-3 pt-1">
+                          <button className="flex items-center gap-1.5 px-3 py-2 border border-[#E2E8F0] text-[#0F172A] hover:bg-[#F8FAFC] rounded-lg text-[13px] font-medium transition-colors">
+                            <Key size={14} className="text-[#64748B]" /> View API Keys
+                          </button>
+                          <button className="flex items-center gap-1.5 px-3 py-2 bg-[#2563EB] text-white hover:bg-blue-700 rounded-lg text-[13px] font-medium transition-colors">
+                            <Plus size={14} /> Generate API Key
+                          </button>
                         </div>
-                      </SettingsSection>
+                      </Section>
                     </>
                   )}
 
-                  {/* TAB 7: SYSTEM */}
+                  {/* ── SYSTEM ────────────────────────────────────────────── */}
                   {activeTab === 'system' && (
                     <>
-                      <SettingsSection title="System Information">
-                        <div className="bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] p-4">
-                          <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">OWMS Version:</span>
-                              <span className="text-sm font-medium text-[#0F172A]">v2.4.1</span>
-                            </div>
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">Build Number:</span>
-                              <span className="text-sm font-medium text-[#0F172A] font-mono">#20241012-a3f9</span>
-                            </div>
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">Environment:</span>
-                              <span className="text-sm font-medium text-[#16A34A]">Production</span>
-                            </div>
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">Node.js Version:</span>
-                              <span className="text-sm font-medium text-[#0F172A]">v20.11.0</span>
-                            </div>
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">Database:</span>
-                              <span className="text-sm font-medium text-[#0F172A]">PostgreSQL 15.4</span>
-                            </div>
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">Last Deployed:</span>
-                              <span className="text-sm font-medium text-[#0F172A]">Oct 12, 2024 at 08:00 AM</span>
-                            </div>
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">Server Region:</span>
-                              <span className="text-sm font-medium text-[#0F172A]">Asia South (Mumbai)</span>
-                            </div>
-                            <div className="flex justify-between border-b border-[#E2E8F0] pb-2">
-                              <span className="text-sm text-[#64748B]">Uptime:</span>
-                              <span className="text-sm font-medium text-[#0F172A]">14 days, 6 hours</span>
-                            </div>
+                      <Section title="System Information">
+                        <div className="bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] p-3">
+                          <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
+                            {[
+                              ['OWMS Version', 'v2.4.1'],
+                              ['Build Number', '#20241012-a3f9'],
+                              ['Environment', 'Production'],
+                              ['Node.js', 'v20.11.0'],
+                              ['Database', 'MongoDB'],
+                              ['Last Deployed', 'Oct 12, 2024'],
+                              ['Server Region', 'Asia South (Mumbai)'],
+                              ['Uptime', '14 days, 6 hours'],
+                            ].map(([k, v]) => (
+                              <div key={k} className="flex items-center justify-between border-b border-[#F1F5F9] pb-2">
+                                <span className="text-[12px] text-[#64748B]">{k}</span>
+                                <span className={`text-[12px] font-medium ${k === 'Environment' ? 'text-[#16A34A]' : 'text-[#0F172A]'} font-mono`}>{v}</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </SettingsSection>
+                      </Section>
 
-                      <div className="border-t border-[#E2E8F0] my-8"></div>
+                      <Divider />
 
-                      <SettingsSection title="Maintenance">
-                        <div className="space-y-6">
-                          <div>
-                            <ToggleSwitch label="Maintenance Mode" description="Use this when performing system updates or migrations" checked={settings.maintenanceMode} onChange={v => updateSetting('maintenanceMode', v)} isDanger={true} />
-                            {settings.maintenanceMode && (
-                              <div className="mt-4 bg-[#FEE2E2] border border-[#DC2626] rounded-lg p-4">
-                                <p className="text-sm font-medium text-[#DC2626] mb-3">⚠ Maintenance mode is ACTIVE. All non-admin users are locked out.</p>
-                                <FieldGroup label="Maintenance Message (shown to locked-out users)">
-                                  <textarea rows={2} value={settings.maintenanceMessage} onChange={e => updateSetting('maintenanceMessage', e.target.value)} className="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#DC2626]"></textarea>
-                                </FieldGroup>
-                              </div>
-                            )}
+                      <Section title="Maintenance">
+                        <Toggle label="Maintenance Mode" description="Non-admin users will be locked out" checked={s.maintenanceMode} onChange={v => set('maintenanceMode', v)} isDanger />
+                        {s.maintenanceMode && (
+                          <div className="bg-[#FEE2E2] border border-[#DC2626] rounded-lg p-3">
+                            <p className="text-[12px] font-medium text-[#DC2626] mb-2">⚠ Maintenance mode is ACTIVE.</p>
+                            <Field label="Message shown to locked-out users">
+                              <textarea rows={2} value={s.maintenanceMessage} onChange={e => set('maintenanceMessage', e.target.value)} className={`${inputCls} border-[#DC2626] focus:border-[#DC2626]`} />
+                            </Field>
                           </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-sm font-medium text-[#0F172A]">Clear Application Cache</div>
-                              <p className="text-xs text-[#64748B] mt-0.5">Clears server-side cache. Users may experience slower load times for a few minutes.</p>
-                            </div>
-                            <button className="flex items-center gap-2 px-3 py-1.5 border border-[#E2E8F0] text-[#D97706] hover:bg-[#FEF3C7] rounded text-sm font-medium transition-colors">
-                              <RefreshCw size={14} /> Clear Cache
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-sm font-medium text-[#0F172A]">Re-index Search</div>
-                              <p className="text-xs text-[#64748B] mt-0.5">Rebuilds the search index. Run this after bulk data imports.</p>
-                            </div>
-                            <button className="flex items-center gap-2 px-3 py-1.5 border border-[#E2E8F0] text-[#0F172A] hover:bg-[#F8FAFC] rounded text-sm font-medium transition-colors">
-                              <Database size={14} className="text-[#64748B]" /> Re-index
-                            </button>
-                          </div>
+                        )}
+                        <div className="flex items-center gap-3">
+                          <button className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E2E8F0] text-[#D97706] hover:bg-[#FEF3C7] rounded-lg text-[13px] font-medium transition-colors">
+                            <RefreshCw size={13} /> Clear Cache
+                          </button>
+                          <button className="flex items-center gap-1.5 px-3 py-1.5 border border-[#E2E8F0] text-[#0F172A] hover:bg-[#F8FAFC] rounded-lg text-[13px] font-medium transition-colors">
+                            <Database size={13} className="text-[#64748B]" /> Re-index Search
+                          </button>
                         </div>
-                      </SettingsSection>
+                      </Section>
 
-                      <div className="mt-8">
-                        <SettingsSection title="Danger Zone" isDanger={true}>
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between border-b border-[#FECACA] pb-4">
+                      <Divider />
+
+                      <Section title="Danger Zone" isDanger>
+                        <div className="space-y-3">
+                          {[
+                            { label: 'Reset All User Passwords', desc: 'Forces all users to reset on next login', btn: 'Reset Passwords' },
+                            { label: 'Clear All Audit Logs', desc: 'Permanently deletes all audit records. Cannot be undone.', btn: 'Clear Audit Logs' },
+                            { label: 'Factory Reset', desc: 'Resets all settings to defaults. User data is preserved.', btn: 'Factory Reset' },
+                          ].map(({ label, desc, btn }) => (
+                            <div key={label} className="flex items-center justify-between border-b border-[#FECACA] pb-3 last:border-0 last:pb-0">
                               <div>
-                                <div className="text-sm font-medium text-[#0F172A]">Reset All User Passwords</div>
-                                <p className="text-xs text-[#64748B] mt-0.5">Forces all users to reset their password on next login</p>
+                                <div className="text-[13px] font-medium text-[#0F172A]">{label}</div>
+                                <p className="text-[11px] text-[#64748B] mt-0.5">{desc}</p>
                               </div>
-                              <button className="px-4 py-2 border border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg text-sm font-medium transition-colors">
-                                Reset All Passwords
+                              <button className="px-3 py-1.5 border border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg text-[12px] font-medium transition-colors shrink-0 ml-4">
+                                {btn}
                               </button>
                             </div>
-                            <div className="flex items-center justify-between border-b border-[#FECACA] pb-4">
-                              <div>
-                                <div className="text-sm font-medium text-[#0F172A]">Clear All Audit Logs</div>
-                                <p className="text-xs text-[#64748B] mt-0.5">Permanently deletes all audit log records. This cannot be undone.</p>
-                              </div>
-                              <button className="px-4 py-2 border border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg text-sm font-medium transition-colors">
-                                Clear Audit Logs
-                              </button>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="text-sm font-medium text-[#0F172A]">Factory Reset</div>
-                                <p className="text-xs text-[#64748B] mt-0.5">Resets all settings to default values. User data is preserved.</p>
-                              </div>
-                              <button className="px-4 py-2 border border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg text-sm font-medium transition-colors">
-                                Factory Reset
-                              </button>
-                            </div>
-                          </div>
-                        </SettingsSection>
-                      </div>
+                          ))}
+                        </div>
+                      </Section>
                     </>
                   )}
-                  
+
                 </motion.div>
               </AnimatePresence>
             </div>
           </div>
         </div>
 
-        {/* STICKY FOOTER */}
-        <div className="fixed bottom-0 left-64 right-0 bg-white border-t border-[#E2E8F0] px-8 py-4 flex items-center justify-between z-50">
+        {/* Sticky footer */}
+        <div className="fixed bottom-0 left-52 right-0 bg-white border-t border-[#E2E8F0] px-6 py-3 flex items-center justify-between z-50 shadow-[0_-1px_4px_rgba(0,0,0,0.06)]">
           <div className="flex items-center gap-2">
             {isDirty ? (
-              <>
-                <div className="w-2 h-2 rounded-full bg-[#D97706]"></div>
-                <span className="text-sm text-[#D97706] font-medium">You have unsaved changes</span>
-              </>
+              <><div className="w-1.5 h-1.5 rounded-full bg-[#D97706]" /><span className="text-[13px] text-[#D97706] font-medium">Unsaved changes</span></>
             ) : (
-              <>
-                <CheckCircle size={16} className="text-[#16A34A]" />
-                <span className="text-sm text-[#64748B]">All changes saved</span>
-              </>
+              <><CheckCircle size={14} className="text-[#16A34A]" /><span className="text-[13px] text-[#64748B]">All changes saved</span></>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isDirty && (
-              <button onClick={() => setIsDirty(false)} className="text-sm font-medium text-[#0F172A] bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] px-5 py-2.5 rounded-lg transition-colors">
-                Cancel Changes
+              <button onClick={() => { fetchSettings(); setIsDirty(false); }} className="text-[13px] font-medium text-[#0F172A] bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] px-4 py-2 rounded-lg transition-colors">
+                Discard
               </button>
             )}
-            <button 
-              onClick={handleSave} 
-              disabled={!isDirty}
-              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${isDirty ? 'bg-[#2563EB] hover:bg-blue-700 text-white' : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed'}`}
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || saving}
+              className={`px-5 py-2 rounded-lg text-[13px] font-medium transition-colors flex items-center gap-1.5 ${isDirty ? 'bg-[#2563EB] hover:bg-blue-700 text-white' : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed'}`}
             >
-              Save Configuration
+              {saving && <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
+
       </div>
     </PageWrapper>
   );

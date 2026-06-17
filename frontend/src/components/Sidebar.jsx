@@ -58,9 +58,29 @@ const NAV_CONFIG = {
 
 export default function Sidebar({ collapsed, setCollapsed }) {
   const { user } = useAuth();
-  const links = NAV_CONFIG[user?.role] || [];
+  // user.role from real backend is a populated object { slug, name, ... }
+  // Resolve to the NAV_CONFIG key (legacy short slugs)
+  const resolveNavKey = (role) => {
+    const slug = role?.slug || (typeof role === 'string' ? role : '');
+    // Map real backend slugs → sidebar config keys
+    const slugMap = {
+      'super-admin': 'admin',
+      'admin': 'admin',
+      'hr-manager': 'hr',
+      'pmo-lead': 'pmo',
+      'employee': 'employee',
+      'intern': 'intern',
+      // legacy short slugs (pass-through)
+      'hr': 'hr',
+      'pmo': 'pmo',
+    };
+    return slugMap[slug] || slug;
+  };
 
-  const isIntern = user?.role === 'intern';
+  const navKey = resolveNavKey(user?.role);
+  const links = NAV_CONFIG[navKey] || [];
+
+  const isIntern = navKey === 'intern';
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 transition-all duration-300 flex flex-col ${collapsed ? 'w-20' : 'w-[260px]'} hidden lg:flex font-sans ${isIntern ? 'bg-[#1E293B] border-r border-[#1E293B]' : 'bg-[#F8FAFC] border-r border-[#E2E8F0]'}`}>

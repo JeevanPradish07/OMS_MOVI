@@ -84,12 +84,18 @@ export const getAuditLogById = async (req, res, next) => {
  */
 export const exportAuditLogs = async (req, res, next) => {
   try {
-    // Basic filter extraction similar to getAuditLogs
-    const { module, action, result, dateFrom, dateTo } = req.query;
+    const { search, module, action, result, ipAddress, dateFrom, dateTo } = req.query;
     const filter = {};
+    if (search) {
+      filter.$or = [
+        { details: { $regex: search, $options: 'i' } },
+        { userName: { $regex: search, $options: 'i' } },
+      ];
+    }
     if (module) filter.module = module;
     if (action) filter.action = action;
     if (result) filter.result = result;
+    if (ipAddress) filter.ipAddress = { $regex: ipAddress, $options: 'i' };
     if (dateFrom || dateTo) {
       filter.createdAt = {};
       if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
@@ -97,26 +103,56 @@ export const exportAuditLogs = async (req, res, next) => {
     }
 
     const logs = await AuditLog.find(filter)
+      .populate({ path: 'user', select: 'name email employeeId', populate: { path: 'role', select: 'name' } })
       .sort({ createdAt: -1 })
-      .limit(10000); // Prevent massive memory dumps
+      .limit(10000);
 
-    let csv = 'Date,User,Action,Module,Details,Result,IP Address\n';
+    // BOM so Excel opens UTF-8 correctly
+    const BOM = '﻿';
 
-    logs.forEach((log) => {
-      const date = log.createdAt.toISOString();
-      const user = `"${log.userName || 'System'}"`;
-      const actionStr = `"${log.action}"`;
-      const moduleStr = `"${log.module}"`;
-      // Escape quotes in details
-      const details = `"${(log.details || '').replace(/"/g, '""')}"`;
-      const resultStr = log.result;
-      const ip = log.ipAddress || '';
+    const headers = [
+      'Timestamp (UTC)', 'Date', 'Time',
+      'User Name', 'User Email', 'Employee ID', 'Role',
+      'Action', 'Module', 'Result',
+      'IP Address', 'Device', 'Details',
+    ];
 
-      csv += `${date},${user},${actionStr},${moduleStr},${details},${resultStr},${ip}\n`;
+    const escape = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+    const rows = logs.map((log) => {
+      const dt = log.createdAt ? new Date(log.createdAt) : null;
+      const timestamp  = dt ? dt.toISOString() : '';
+      const dateStr    = dt ? dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' }) : '';
+      const timeStr    = dt ? dt.toLocaleTimeString('en-US', { hour12: false }) : '';
+      const userName   = log.user?.name   || log.userName || 'System';
+      const userEmail  = log.user?.email  || '';
+      const employeeId = log.user?.employeeId || '';
+      const role       = log.user?.role?.name || '';
+
+      return [
+        escape(timestamp),
+        escape(dateStr),
+        escape(timeStr),
+        escape(userName),
+        escape(userEmail),
+        escape(employeeId),
+        escape(role),
+        escape(log.action || ''),
+        escape(log.module || ''),
+        escape(log.result || ''),
+        escape(log.ipAddress || ''),
+        escape(log.device || ''),
+        escape(log.details || ''),
+      ].join(',');
     });
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=audit-logs.csv');
+    const csv = BOM + headers.map(escape).join(',') + '\n' + rows.join('\n');
+
+    const exportedAt = new Date().toISOString().slice(0, 10);
+    const filename = `OWMS_AuditLogs_${exportedAt}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.status(200).send(csv);
   } catch (error) {
     next(error);

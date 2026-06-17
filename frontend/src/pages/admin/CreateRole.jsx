@@ -1,8 +1,67 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import PageWrapper from '../../components/PageWrapper';
+import { adminAPI } from '../../utils/api';
 
 export default function AdminCreateRole() {
   const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    cloneRoleId: '',
+  });
+
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const res = await adminAPI.getRoles();
+        setRoles(res.data.data || []);
+      } catch (err) {
+        toast.error('Failed to load roles for cloning');
+      }
+    };
+    fetchRoles();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.description) {
+      toast.error('Role name and description are required');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      let permissions = [];
+      if (formData.cloneRoleId) {
+        const roleToClone = roles.find(r => r._id === formData.cloneRoleId);
+        if (roleToClone && roleToClone.permissions) {
+          permissions = roleToClone.permissions.map(p => typeof p === 'object' ? p._id : p);
+        }
+      }
+
+      await adminAPI.createRole({
+        name: formData.name,
+        description: formData.description,
+        permissions,
+      });
+      toast.success('Role created successfully');
+      navigate('/admin/roles');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create role');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <PageWrapper>
@@ -40,11 +99,11 @@ export default function AdminCreateRole() {
             <div className="lg:col-span-2 bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="sm:col-span-2">
                 <label className="block text-[13px] font-medium text-[#0F172A] mb-1.5">Role Title <span className="text-[#DC2626]">*</span></label>
-                <input type="text" className="w-full border border-[#E2E8F0] rounded-lg px-3.5 py-2.5 text-[14px] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors" placeholder="e.g. Audit Manager" />
+                <input name="name" value={formData.name} onChange={handleChange} type="text" className="w-full border border-[#E2E8F0] rounded-lg px-3.5 py-2.5 text-[14px] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors" placeholder="e.g. Audit Manager" />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-[13px] font-medium text-[#0F172A] mb-1.5">Description <span className="text-[#DC2626]">*</span></label>
-                <textarea rows="3" className="w-full border border-[#E2E8F0] rounded-lg px-3.5 py-2.5 text-[14px] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors resize-none" placeholder="Briefly describe what users with this role do in the system..."></textarea>
+                <textarea name="description" value={formData.description} onChange={handleChange} rows="3" className="w-full border border-[#E2E8F0] rounded-lg px-3.5 py-2.5 text-[14px] focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors resize-none" placeholder="Briefly describe what users with this role do in the system..."></textarea>
               </div>
             </div>
           </div>
@@ -64,11 +123,9 @@ export default function AdminCreateRole() {
               <div>
                 <label className="block text-[13px] font-medium text-[#0F172A] mb-1.5">Clone Existing Profile</label>
                 <div className="relative">
-                  <select className="w-full border border-[#E2E8F0] rounded-lg px-3.5 py-2.5 text-[14px] bg-white focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors appearance-none cursor-pointer">
+                  <select name="cloneRoleId" value={formData.cloneRoleId} onChange={handleChange} className="w-full border border-[#E2E8F0] rounded-lg px-3.5 py-2.5 text-[14px] bg-white focus:outline-none focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB] transition-colors appearance-none cursor-pointer">
                     <option value="">Start with Empty Profile</option>
-                    <option value="employee">Clone Employee Profile</option>
-                    <option value="hr">Clone HR Manager Profile</option>
-                    <option value="pmo">Clone PMO Manager Profile</option>
+                    {roles.map(r => <option key={r._id} value={r._id}>Clone {r.name} Profile</option>)}
                   </select>
                   <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none text-[18px]">expand_more</span>
                 </div>
@@ -160,8 +217,13 @@ export default function AdminCreateRole() {
             <button className="border border-[#E2E8F0] bg-white text-[#0F172A] px-5 py-2.5 rounded-lg text-[13px] font-medium hover:bg-[#F8FAFC] transition-colors shadow-sm">
               Save as Draft
             </button>
-            <button className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-6 py-2.5 rounded-lg text-[13px] font-medium transition-colors shadow-sm flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">badge</span> Create Role
+            <button onClick={handleSubmit} disabled={loading} className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-6 py-2.5 rounded-lg text-[13px] font-medium transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60">
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-[18px]">badge</span>
+              )}
+              Create Role
             </button>
           </div>
         </div>

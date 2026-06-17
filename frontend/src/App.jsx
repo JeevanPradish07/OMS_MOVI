@@ -63,6 +63,9 @@ import AdminUserDetails from './pages/admin/UserDetails';
 import AdminDepartments from './pages/admin/Departments';
 import AdminCreateDepartment from './pages/admin/CreateDepartment';
 import AdminDepartmentDetails from './pages/admin/DepartmentDetails';
+import AdminEditDepartment from './pages/admin/EditDepartment';
+import AdminEditUser from './pages/admin/EditUser';
+import AdminEditRole from './pages/admin/EditRole';
 import AdminRoles from './pages/admin/Roles';
 import AdminCreateRole from './pages/admin/CreateRole';
 import AdminRoleDetails from './pages/admin/RoleDetails';
@@ -79,7 +82,10 @@ import Profile from './pages/Profile';
 
 function RoleRedirect() {
   const { user } = useAuth();
-  if (user) return <Navigate to={ROLE_HOME[user.role] || '/login'} replace />;
+  if (user) {
+    const slug = user.role?.slug || user.role || '';
+    return <Navigate to={ROLE_HOME[slug] || '/login'} replace />;
+  }
   return <Navigate to="/login" replace />;
 }
 
@@ -144,12 +150,15 @@ export default function App() {
       <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><AdminUsers /></ProtectedRoute>} />
       <Route path="/admin/users/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminCreateUser /></ProtectedRoute>} />
       <Route path="/admin/users/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetails /></ProtectedRoute>} />
+      <Route path="/admin/users/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><AdminEditUser /></ProtectedRoute>} />
       <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={['admin']}><AdminDepartments /></ProtectedRoute>} />
       <Route path="/admin/departments/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminCreateDepartment /></ProtectedRoute>} />
       <Route path="/admin/departments/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminDepartmentDetails /></ProtectedRoute>} />
+      <Route path="/admin/departments/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><AdminEditDepartment /></ProtectedRoute>} />
       <Route path="/admin/roles" element={<ProtectedRoute allowedRoles={['admin']}><AdminRoles /></ProtectedRoute>} />
       <Route path="/admin/roles/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminCreateRole /></ProtectedRoute>} />
       <Route path="/admin/roles/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminRoleDetails /></ProtectedRoute>} />
+      <Route path="/admin/roles/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><AdminEditRole /></ProtectedRoute>} />
       <Route path="/admin/permissions" element={<ProtectedRoute allowedRoles={['admin']}><AdminPermissions /></ProtectedRoute>} />
       <Route path="/admin/permissions/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminCreatePermission /></ProtectedRoute>} />
       <Route path="/admin/access-matrix" element={<ProtectedRoute allowedRoles={['admin']}><AdminAccessMatrix /></ProtectedRoute>} />
