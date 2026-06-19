@@ -42,7 +42,9 @@ export default function LoginPage() {
     setErrorMsg('');
     try {
       const user = await login(identifier, password);
-      const slug = user.role?.slug || user.role || '';
+      // Normalize role slug (trim + lowercase) to be resilient to backend variations
+      const rawSlug = user.role?.slug || user.role || '';
+      const slug = String(rawSlug).toLowerCase().trim();
       navigate(ROLE_HOME[slug] || '/unauthorized');
     } catch (err) {
       setErrorMsg(err.response?.data?.message || err.message || 'Invalid credentials.');

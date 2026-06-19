@@ -25,9 +25,9 @@ const LEGACY_SLUG_MAP = {
 function resolveSlug(user) {
   if (!user) return null;
   // Real backend response: user.role is a populated object with .slug
-  if (user.role?.slug) return user.role.slug;
+  if (user.role?.slug) return String(user.role.slug).toLowerCase().trim();
   // Fallback: user.role is already a string slug
-  if (typeof user.role === 'string') return user.role;
+  if (typeof user.role === 'string') return String(user.role).toLowerCase().trim();
   return null;
 }
 

@@ -53,7 +53,15 @@ export default function InternDashboard() {
       setTasks(tasksRes.data.data || []);
 
       const learningRes = await internAPI.getLearningResources();
-      setLearning(learningRes.data.data || []);
+      // Defensive extraction: API may wrap array differently
+      const learningPayload = learningRes?.data?.data ?? learningRes?.data;
+      if (Array.isArray(learningPayload)) {
+        setLearning(learningPayload);
+      } else if (learningPayload && Array.isArray(learningPayload.records)) {
+        setLearning(learningPayload.records);
+      } else {
+        setLearning([]);
+      }
     } catch (err) {
       toast.error('Failed to load dashboard data');
     } finally {
@@ -75,10 +83,10 @@ export default function InternDashboard() {
     );
   }
 
-  // Calculate task counts
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'Done').length;
-  const overdueCount = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'Done').length;
+  // Calculate task counts (defensive)
+  const totalTasks = Array.isArray(tasks) ? tasks.length : 0;
+  const completedTasks = Array.isArray(tasks) ? tasks.filter(t => t.status === 'Done').length : 0;
+  const overdueCount = Array.isArray(tasks) ? tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'Done').length : 0;
 
   // Calculate remaining leaves
   const remainingLeaves = profile?.leaveBalance 
@@ -100,10 +108,10 @@ export default function InternDashboard() {
   }
 
   // Todays tasks (active)
-  const todaysTasks = tasks.filter(t => t.status !== 'Done').slice(0, 3);
+  const todaysTasks = Array.isArray(tasks) ? tasks.filter(t => t.status !== 'Done').slice(0, 3) : [];
 
   // Performance rating from profile
-  const ratings = profile?.performanceRatings || [];
+  const ratings = Array.isArray(profile?.performanceRatings) ? profile.performanceRatings : [];
   const latestRatingObj = ratings.length > 0 ? ratings[ratings.length - 1] : null;
   const avgRating = ratings.length > 0 
     ? (ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length).toFixed(1)
@@ -283,7 +291,7 @@ export default function InternDashboard() {
             <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
               <h2 className="font-semibold text-[#0F172A] mb-4">Upcoming Deadlines</h2>
               <div className="space-y-3">
-                {tasks.filter(t => t.status !== 'Done' && t.dueDate).slice(0, 3).map(t => (
+                {Array.isArray(tasks) && tasks.filter(t => t.status !== 'Done' && t.dueDate).slice(0, 3).map(t => (
                   <div key={t._id} className="flex gap-3">
                     <div className={`w-1 rounded-full shrink-0 ${getUrgencyColor(t.priority)}`} />
                     <div className="flex-1 py-1">
@@ -295,7 +303,7 @@ export default function InternDashboard() {
                     </div>
                   </div>
                 ))}
-                {tasks.filter(t => t.status !== 'Done' && t.dueDate).length === 0 && (
+                {(!Array.isArray(tasks) || tasks.filter(t => t.status !== 'Done' && t.dueDate).length === 0) && (
                   <p className="text-xs text-[#64748B]">No upcoming deadlines.</p>
                 )}
               </div>
@@ -330,10 +338,10 @@ export default function InternDashboard() {
             <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold text-[#0F172A]">Learning</h2>
-                <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded">{learning.filter(l => l.status !== 'Completed').length} pending</span>
+                <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded">{Array.isArray(learning) ? learning.filter(l => l.status !== 'Completed').length : 0} pending</span>
               </div>
               <div className="space-y-3 mb-4">
-                {learning.slice(0, 2).map(lr => (
+                {(Array.isArray(learning) ? learning.slice(0, 2) : []).map(lr => (
                   <div key={lr._id} className="flex gap-3 items-center border border-[#E2E8F0] p-2.5 rounded-lg text-left">
                     <div className="w-8 h-8 rounded flex items-center justify-center shrink-0 bg-blue-100 text-blue-600">
                       <GraduationCap size={16} />

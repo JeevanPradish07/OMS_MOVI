@@ -33,7 +33,15 @@ export default function EmployeeDashboard() {
       setProjects(projectsRes.data.data || []);
 
       const attendanceRes = await employeeAPI.getAttendance();
-      setAttendance(attendanceRes.data.data || []);
+      // Defensive extraction: API response shape may vary
+      const attendancePayload = attendanceRes?.data?.data ?? attendanceRes?.data;
+      if (Array.isArray(attendancePayload)) {
+        setAttendance(attendancePayload);
+      } else if (attendancePayload && Array.isArray(attendancePayload.records)) {
+        setAttendance(attendancePayload.records);
+      } else {
+        setAttendance([]);
+      }
 
       try {
         const leaveRes = await employeeAPI.getLeaveBalance();
@@ -70,13 +78,13 @@ export default function EmployeeDashboard() {
   }
 
   // Calculate task counts
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'Done').length;
-  const activeTasksCount = tasks.filter(t => t.status !== 'Done').length;
+  const totalTasks = Array.isArray(tasks) ? tasks.length : 0;
+  const completedTasks = Array.isArray(tasks) ? tasks.filter(t => t.status === 'Done').length : 0;
+  const activeTasksCount = Array.isArray(tasks) ? tasks.filter(t => t.status !== 'Done').length : 0;
 
   // Calculate attendance rate
-  const totalDays = attendance.length;
-  const presentDays = attendance.filter(a => a.status === 'Present').length;
+  const totalDays = Array.isArray(attendance) ? attendance.length : 0;
+  const presentDays = Array.isArray(attendance) ? attendance.filter(a => a.status === 'Present').length : 0;
   const attendancePercent = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 100;
 
   // Calculate remaining leaves
@@ -102,19 +110,20 @@ export default function EmployeeDashboard() {
   const workloadBarColor = workload < 50 ? 'bg-[#16A34A]' : workload <= 80 ? 'bg-[#D97706]' : 'bg-[#DC2626]';
 
   // Filters tasks for "Today's Tasks" section (active tasks)
-  const todaysTasks = tasks.filter(t => t.status !== 'Done').slice(0, 3);
+  const todaysTasks = Array.isArray(tasks) ? tasks.filter(t => t.status !== 'Done').slice(0, 3) : [];
 
   // Generate activities dynamically from statusHistory
-  const recentActivities = tasks
-    .filter(t => t.statusHistory && t.statusHistory.length > 0)
-    .flatMap(t => t.statusHistory.map(h => ({
+  const recentActivities = Array.isArray(tasks)
+    ? tasks.filter(t => t.statusHistory && t.statusHistory.length > 0)
+      .flatMap(t => t.statusHistory.map(h => ({
       id: h._id || Math.random(),
       text: `Task '${t.title}' marked ${h.status}`,
       time: new Date(h.changedAt).toLocaleDateString(),
       color: h.status === 'Done' ? 'bg-green-500' : (h.status === 'In Progress' ? 'bg-blue-500' : 'bg-purple-500')
     })))
     .sort((a, b) => new Date(b.time) - new Date(a.time))
-    .slice(0, 3);
+    .slice(0, 3)
+    : [];
 
   // Fallback default activities if history is empty
   const activities = recentActivities.length > 0 ? recentActivities : [
@@ -236,7 +245,7 @@ export default function EmployeeDashboard() {
               </div>
               <div className="space-y-4">
                 {projects.slice(0, 3).map(proj => {
-                  const projTasks = tasks.filter(t => t.project?._id === proj._id || t.project === proj._id);
+                  const projTasks = Array.isArray(tasks) ? tasks.filter(t => t.project?._id === proj._id || t.project === proj._id) : [];
                   const done = projTasks.filter(t => t.status === 'Done').length;
                   const total = projTasks.length;
                   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -325,7 +334,7 @@ export default function EmployeeDashboard() {
             <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
               <h2 className="font-semibold text-[#0F172A] mb-4">Upcoming Deadlines</h2>
               <div className="space-y-3">
-                {tasks.filter(t => t.status !== 'Done' && t.dueDate).slice(0, 3).map(t => (
+                {(Array.isArray(tasks) ? tasks.filter(t => t.status !== 'Done' && t.dueDate).slice(0, 3) : []).map(t => (
                   <div key={t._id} className="flex items-center gap-3">
                     <div className={`w-1.5 h-10 rounded-full ${getUrgencyColor(t.priority)} shrink-0`} />
                     <div className="flex-1">
@@ -334,7 +343,7 @@ export default function EmployeeDashboard() {
                     </div>
                   </div>
                 ))}
-                {tasks.filter(t => t.status !== 'Done' && t.dueDate).length === 0 && (
+                {(!Array.isArray(tasks) || tasks.filter(t => t.status !== 'Done' && t.dueDate).length === 0) && (
                   <p className="text-xs text-[#64748B]">No upcoming task deadlines.</p>
                 )}
               </div>

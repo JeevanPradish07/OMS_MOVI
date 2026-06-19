@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { ProtectedRoute, ROLE_HOME } from './routes/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Auth
 import LoginPage from './pages/auth/LoginPage';
@@ -83,7 +84,8 @@ import Profile from './pages/Profile';
 function RoleRedirect() {
   const { user } = useAuth();
   if (user) {
-    const slug = user.role?.slug || user.role || '';
+    const rawSlug = user.role?.slug || user.role || '';
+    const slug = String(rawSlug).toLowerCase().trim();
     return <Navigate to={ROLE_HOME[slug] || '/login'} replace />;
   }
   return <Navigate to="/login" replace />;
@@ -99,7 +101,7 @@ export default function App() {
       <Route path="/" element={<RoleRedirect />} />
 
       {/* Intern */}
-      <Route path="/intern/dashboard" element={<ProtectedRoute allowedRoles={['intern']}><InternDashboard /></ProtectedRoute>} />
+      <Route path="/intern/dashboard" element={<ProtectedRoute allowedRoles={['intern']}><ErrorBoundary><InternDashboard /></ErrorBoundary></ProtectedRoute>} />
       <Route path="/intern/tasks" element={<ProtectedRoute allowedRoles={['intern']}><InternTasks /></ProtectedRoute>} />
       <Route path="/intern/attendance" element={<ProtectedRoute allowedRoles={['intern']}><InternAttendance /></ProtectedRoute>} />
       <Route path="/intern/leave" element={<ProtectedRoute allowedRoles={['intern']}><InternLeave /></ProtectedRoute>} />
@@ -107,7 +109,7 @@ export default function App() {
       <Route path="/intern/profile" element={<ProtectedRoute allowedRoles={['intern']}><InternProfile /></ProtectedRoute>} />
 
       {/* Employee */}
-      <Route path="/employee/dashboard" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeDashboard /></ProtectedRoute>} />
+      <Route path="/employee/dashboard" element={<ProtectedRoute allowedRoles={['employee']}><ErrorBoundary><EmployeeDashboard /></ErrorBoundary></ProtectedRoute>} />
       <Route path="/employee/tasks" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeTasks /></ProtectedRoute>} />
       <Route path="/employee/projects" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeProjects /></ProtectedRoute>} />
       <Route path="/employee/team" element={<ProtectedRoute allowedRoles={['employee']}><EmployeeTeam /></ProtectedRoute>} />
