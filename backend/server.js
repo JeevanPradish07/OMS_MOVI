@@ -2,12 +2,14 @@ import 'dotenv/config';
 import app from './src/app.js';
 import connectDB from './src/config/db.js';
 import { validateEnv } from './src/config/env.js';
+import { syncPermissions } from './src/utils/syncPermissions.js';
 
 // Validate environment variables before anything else
 validateEnv();
 
-// Connect to MongoDB
+// Connect to MongoDB then sync permissions from config
 await connectDB();
+await syncPermissions();
 
 // Start server
 const PORT = process.env.PORT || 5000;

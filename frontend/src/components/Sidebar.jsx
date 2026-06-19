@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, Grid2X2, CheckSquare, Users, GraduationCap, BarChart2, LayoutDashboard, CalendarDays, Clock, BookOpen, User, Briefcase } from 'lucide-react';
+import { Grid2X2, CheckSquare, Users, GraduationCap, BarChart2, LayoutDashboard, CalendarDays, Clock, BookOpen, User, Briefcase } from 'lucide-react';
 
 const NAV_CONFIG = {
   employee: [
@@ -48,7 +48,6 @@ const NAV_CONFIG = {
     { to: '/admin/users', icon: 'group', label: 'Users' },
     { to: '/admin/departments', icon: 'domain', label: 'Departments' },
     { to: '/admin/roles', icon: 'badge', label: 'Roles' },
-    { to: '/admin/permissions', icon: Shield, label: 'Permissions', isLucide: true },
     { to: '/admin/access-matrix', icon: Grid2X2, label: 'Access Matrix', isLucide: true },
     { to: '/admin/audit', icon: 'history', label: 'Audit Logs' },
     { to: '/admin/reports', icon: 'analytics', label: 'Reports' },

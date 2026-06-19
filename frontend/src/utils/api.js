@@ -86,10 +86,8 @@ export const adminAPI = {
   updateDepartment: (id, data) => api.put(`/admin/departments/${id}`, data),
   deleteDepartment: (id) => api.delete(`/admin/departments/${id}`),
 
-  // Permissions
+  // Permissions (read-only — auto-generated from backend config)
   getPermissions: (params) => api.get('/admin/permissions', { params }),
-  createPermission: (data) => api.post('/admin/permissions', data),
-  updatePermissionStatus: (id, status) => api.patch(`/admin/permissions/${id}/status`, { status }),
 
   // Access Matrix
   getAccessMatrix: () => api.get('/admin/access-matrix'),
