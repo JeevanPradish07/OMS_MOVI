@@ -42,9 +42,15 @@ export default function AdminRoles() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const executeDelete = async () => {
-    await adminAPI.deleteRole(deleteTarget.id);
-    setDeleteTarget(null);
-    await fetchRoles();
+    try {
+      await adminAPI.deleteRole(deleteTarget.id);
+      setDeleteTarget(null);
+      toast.success(`Role "${deleteTarget.name}" deleted`);
+      await fetchRoles();
+    } catch (err) {
+      setDeleteTarget(null);
+      toast.error(err.response?.data?.message || 'Failed to delete role');
+    }
   };
 
   return (
