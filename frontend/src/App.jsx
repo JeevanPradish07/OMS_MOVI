@@ -70,8 +70,6 @@ import AdminEditRole from './pages/admin/EditRole';
 import AdminRoles from './pages/admin/Roles';
 import AdminCreateRole from './pages/admin/CreateRole';
 import AdminRoleDetails from './pages/admin/RoleDetails';
-import AdminPermissions from './pages/admin/Permissions';
-import AdminCreatePermission from './pages/admin/CreatePermission';
 import AdminAccessMatrix from './pages/admin/AccessMatrix';
 import AdminAuditLogs from './pages/admin/AuditLogs';
 import AdminReports from './pages/admin/Reports';
@@ -161,8 +159,6 @@ export default function App() {
       <Route path="/admin/roles/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminCreateRole /></ProtectedRoute>} />
       <Route path="/admin/roles/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminRoleDetails /></ProtectedRoute>} />
       <Route path="/admin/roles/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><AdminEditRole /></ProtectedRoute>} />
-      <Route path="/admin/permissions" element={<ProtectedRoute allowedRoles={['admin']}><AdminPermissions /></ProtectedRoute>} />
-      <Route path="/admin/permissions/new" element={<ProtectedRoute allowedRoles={['admin']}><AdminCreatePermission /></ProtectedRoute>} />
       <Route path="/admin/access-matrix" element={<ProtectedRoute allowedRoles={['admin']}><AdminAccessMatrix /></ProtectedRoute>} />
       <Route path="/admin/audit" element={<ProtectedRoute allowedRoles={['admin']}><AdminAuditLogs /></ProtectedRoute>} />
       <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><AdminReports /></ProtectedRoute>} />

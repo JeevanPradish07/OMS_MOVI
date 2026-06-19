@@ -86,10 +86,8 @@ export const adminAPI = {
   updateDepartment: (id, data) => api.put(`/admin/departments/${id}`, data),
   deleteDepartment: (id) => api.delete(`/admin/departments/${id}`),
 
-  // Permissions
+  // Permissions (read-only — auto-generated from backend config)
   getPermissions: (params) => api.get('/admin/permissions', { params }),
-  createPermission: (data) => api.post('/admin/permissions', data),
-  updatePermissionStatus: (id, status) => api.patch(`/admin/permissions/${id}/status`, { status }),
 
   // Access Matrix
   getAccessMatrix: () => api.get('/admin/access-matrix'),
@@ -148,6 +146,7 @@ export const pmoAPI = {
   getProject: (id) => api.get(`/pmo/projects/${id}`),
   createProject: (data) => api.post('/pmo/projects', data),
   updateProject: (id, data) => api.put(`/pmo/projects/${id}`, data),
+  deleteProject: (id) => api.delete(`/pmo/projects/${id}`),
   addProjectTeam: (id, members) => api.post(`/pmo/projects/${id}/team`, { members }),
   removeProjectTeamMember: (id, userId) => api.delete(`/pmo/projects/${id}/team/${userId}`),
   assignProjectInterns: (id, internIds) => api.post(`/pmo/projects/${id}/interns`, { internIds }),
@@ -173,6 +172,8 @@ export const pmoAPI = {
 
   getProjectHealth: () => api.get('/pmo/reports/health'),
   getResourceWarnings: () => api.get('/pmo/reports/warnings'),
+  getDashboardStats: () => api.get('/pmo/dashboard'),
+  reviewApproval: (id, data) => api.put(`/pmo/approvals/${id}`, data),
 };
 
 // ─── EMPLOYEE API ─────────────────────────────────────────────────────────
