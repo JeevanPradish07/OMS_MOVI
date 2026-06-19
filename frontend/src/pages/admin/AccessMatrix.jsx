@@ -172,7 +172,7 @@ export default function AdminAccessMatrix() {
               <span className="text-[#0F172A] font-medium">Access Matrix</span>
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Access Matrix</h1>
-            <p className="text-sm text-[#64748B] mt-1">Role-based permission overview across all system resources</p>
+            <p className="text-sm text-[#64748B] mt-1">Manage which roles can Create, Read, Update, and Delete across every module in OWMS</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="border border-[#E2E8F0] text-[#0F172A] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#F8FAFC] transition-colors flex items-center gap-2">

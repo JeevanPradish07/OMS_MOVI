@@ -161,7 +161,7 @@ export default function AdminEditRole() {
             <div className="lg:col-span-2 space-y-4">
               {Object.keys(grouped).length === 0 ? (
                 <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 text-center text-[13px] text-[#64748B]">
-                  No permissions found. Add permissions in the <button onClick={() => navigate('/admin/permissions')} className="text-[#2563EB] hover:underline">Permissions</button> section first.
+                  No permissions found. Permissions are auto-generated from the system config on server startup.
                 </div>
               ) : (
                 Object.entries(grouped).map(([module, perms]) => (

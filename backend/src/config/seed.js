@@ -1,3 +1,4 @@
+import { generatePermissionDefinitions } from './permissionsConfig.js';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
@@ -32,45 +33,7 @@ const connectDB = async () => {
   }
 };
 
-const permissionsList = [
-  { name: 'users.create', label: 'Create Users', resource: 'Users', action: 'create' },
-  { name: 'users.read', label: 'Read Users', resource: 'Users', action: 'read' },
-  { name: 'users.update', label: 'Update Users', resource: 'Users', action: 'update' },
-  { name: 'users.delete', label: 'Delete Users', resource: 'Users', action: 'delete', riskLevel: 'High' },
-  { name: 'users.manage', label: 'Manage Users', resource: 'Users', action: 'manage', riskLevel: 'High' },
-  { name: 'departments.create', label: 'Create Departments', resource: 'Departments', action: 'create' },
-  { name: 'departments.read', label: 'Read Departments', resource: 'Departments', action: 'read' },
-  { name: 'departments.update', label: 'Update Departments', resource: 'Departments', action: 'update' },
-  { name: 'departments.delete', label: 'Delete Departments', resource: 'Departments', action: 'delete' },
-  { name: 'roles.create', label: 'Create Roles', resource: 'Roles', action: 'create' },
-  { name: 'roles.read', label: 'Read Roles', resource: 'Roles', action: 'read' },
-  { name: 'roles.update', label: 'Update Roles', resource: 'Roles', action: 'update' },
-  { name: 'roles.delete', label: 'Delete Roles', resource: 'Roles', action: 'delete', riskLevel: 'High' },
-  { name: 'permissions.read', label: 'Read Permissions', resource: 'Permissions', action: 'read' },
-  { name: 'permissions.create', label: 'Create Permissions', resource: 'Permissions', action: 'create' },
-  { name: 'permissions.update', label: 'Update Permissions', resource: 'Permissions', action: 'update' },
-  { name: 'permissions.delete', label: 'Delete Permissions', resource: 'Permissions', action: 'delete', riskLevel: 'Critical' },
-  { name: 'permissions.manage', label: 'Manage Access Matrix', resource: 'Permissions', action: 'manage', riskLevel: 'Critical' },
-  { name: 'audit-logs.read', label: 'Read Audit Logs', resource: 'Audit Logs', action: 'read', riskLevel: 'Medium' },
-  { name: 'audit-logs.export', label: 'Export Audit Logs', resource: 'Audit Logs', action: 'export', riskLevel: 'High' },
-  { name: 'settings.manage', label: 'Manage Settings', resource: 'Settings', action: 'manage', riskLevel: 'High' },
-  { name: 'projects.create', label: 'Create Projects', resource: 'Projects', action: 'create' },
-  { name: 'projects.read', label: 'Read Projects', resource: 'Projects', action: 'read' },
-  { name: 'projects.update', label: 'Update Projects', resource: 'Projects', action: 'update' },
-  { name: 'projects.manage', label: 'Manage Projects', resource: 'Projects', action: 'manage' },
-  { name: 'tasks.create', label: 'Create Tasks', resource: 'Tasks', action: 'create' },
-  { name: 'tasks.read', label: 'Read Tasks', resource: 'Tasks', action: 'read' },
-  { name: 'tasks.update', label: 'Update Tasks', resource: 'Tasks', action: 'update' },
-  { name: 'tasks.delete', label: 'Delete Tasks', resource: 'Tasks', action: 'delete' },
-  { name: 'attendance.read', label: 'Read Attendance', resource: 'Attendance', action: 'read' },
-  { name: 'attendance.manage', label: 'Manage Attendance', resource: 'Attendance', action: 'manage' },
-  { name: 'attendance.export', label: 'Export Attendance', resource: 'Attendance', action: 'export' },
-  { name: 'leave.read', label: 'Read Leave', resource: 'Leave', action: 'read' },
-  { name: 'leave.approve', label: 'Approve Leave', resource: 'Leave', action: 'approve' },
-  { name: 'leave.manage', label: 'Manage Leave', resource: 'Leave', action: 'manage' },
-  { name: 'interns.read', label: 'Read Interns', resource: 'Interns', action: 'read' },
-  { name: 'interns.manage', label: 'Manage Interns', resource: 'Interns', action: 'manage' },
-];
+const permissionsList = generatePermissionDefinitions();
 
 const seedData = async () => {
   try {
